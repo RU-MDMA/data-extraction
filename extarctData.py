@@ -9,11 +9,17 @@ output_file_path = "./combined_data.csv"
 target_subdirs = {"baseline", "recovery"}
 expected_meetings = [f"meet {i}" for i in range(1, 18)]
 
-df = pd.DataFrame()
-
 #subject --> meeting --> base\ther\reco --> csv
 
-def iterate_over_drive(root_drive):
+def iterate_over_drive(root_drive, output_file_path, target_subdirs):
+    """
+    Iterrate over a given directory path and appends any .csv
+    Args:
+        path (str): Path to the root directory.        
+
+    """
+    df = pd.DataFrame()
+
     # Walk through the file system
     for dirpath, _, filenames in os.walk(root_drive):
         current_folder = os.path.basename(dirpath).lower()
@@ -59,7 +65,7 @@ def read_csv_fill_MA(path, delimiter=':'):
     df = pd.DataFrame(padded, columns=col_names)
     return df
 
-iterate_over_drive(root_drive)
+iterate_over_drive(root_drive, output_file_path, target_subdirs)
 
 
     
