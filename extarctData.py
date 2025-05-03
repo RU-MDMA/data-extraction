@@ -7,25 +7,28 @@ output_file_path = "combined_data.csv"
 target_subdirs = {"baseline", "recovery"}
 expected_meetings = [f"meet {i}" for i in range(1, 18)]
 
-df_list = []
+all_data = []
 
 #subject --> meeting --> base\ther\reco --> csv
 
+# Walk through the file system
 for dirpath, _, filenames in os.walk(root_drive):
     current_folder = os.path.basename(dirpath).lower()
-    if current_folder in target_subdirs: #to handle the name 
+    if current_folder in target_subdirs: #to handle the name
         for filename in filenames:
             if filename.lower().endswith(".csv"):
                 file_path = os.path.join(dirpath, filename)
                 try:
                     df = pd.read_csv(file_path)
-                    
+                    all_data.append(df)
+
                     print(f"Loaded: {file_path}")
                 except Exception as e:
                     print(f"Failed to read {file_path}: {e}")
 
-if df_list:
-    combined_df = pd.concat(df_list, ignore_index=True)
+# Combine all DataFrames
+if all_data:
+    combined_df = pd.concat(all_data, ignore_index=True) #also converts into DataFrame 
     combined_df.to_csv(output_file_path, index=False)
     print(f"\nCombined CSV saved to {output_file_path}")
 else:
