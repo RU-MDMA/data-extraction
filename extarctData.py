@@ -2,10 +2,17 @@ import os
 import csv
 import pandas as pd
 
-def read_csv_fill_NA(path, delimiter=",", show_headers=True):
+def add_column_names(data_rows, max_cols):
     """
-    Reads a CSV file, replaces empty cells with 'NA', and returns a pandas DataFrame.
-    Pads short rows to match the longest one. Optionally prints without index/headers.
+    Add generic column names to the data and return a DataFrame.
+    """
+    col_names = [f"col{i+1}" for i in range(max_cols)]
+    return pd.DataFrame(data_rows, columns=col_names)
+
+def read_csv_fill_NA(path, delimiter=","):
+    """
+    Reads a CSV file, replaces empty cells with 'NA', and returns a DataFrame.
+    Pads short rows to the max number of columns found in the file.
     """
     with open(path, newline='', encoding="utf-8") as f:
         reader = csv.reader(f, delimiter=delimiter)
@@ -16,15 +23,10 @@ def read_csv_fill_NA(path, delimiter=",", show_headers=True):
             rows.append(cleaned_row)
             max_cols = max(max_cols, len(cleaned_row))
 
-    # Pad all rows to same length
+    # Pad all rows
     padded = [r + ["NA"] * (max_cols - len(r)) for r in rows]
     
-    # Generate generic column names
-    col_names = [f"col{i+1}" for i in range(max_cols)]
-    
-    # Create DataFrame
-    df = pd.DataFrame(padded, columns=col_names)
-    return df
+    return add_column_names(padded, max_cols)
 
 def iterate_over_drive(root):
     """
@@ -54,5 +56,5 @@ def iterate_over_drive(root):
     return combined
 
 # Update this to the folder you want to scan
-root_drive = r"./subject 15"
+root_drive = r"./"
 iterate_over_drive(root_drive)
