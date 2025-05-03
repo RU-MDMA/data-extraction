@@ -36,14 +36,16 @@ def iterate_over_drive(root):
     dfs = []
     for dirpath, _, filenames in os.walk(root):
         for fname in filenames:
+
             if fname.lower().endswith(".csv"):
                 file_path = os.path.join(dirpath, fname)
-                try:
-                    df = read_csv_fill_NA(file_path)
-                    df = extract_metadata(df, str(file_path))
-                    dfs.append(df)
-                except Exception as e:
-                    print(f"Failed to process {file_path}: {e}")
+                if "therapy" not in file_path.lower():
+                    try:
+                        df = read_csv_fill_NA(file_path)
+                        df = extract_metadata(df, str(file_path))
+                        dfs.append(df)
+                    except Exception as e:
+                        print(f"Failed to process {file_path}: {e}")
 
     if not dfs:
         print("No CSV files found under", root)
