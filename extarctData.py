@@ -81,11 +81,12 @@ def extract_metadata(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
     out["subject"] = subject
     out["meet"]    = meet
     out["state"]   = state
+
     return out
 
 def main():
     # Update this to the folder you want to scan
-    root_drive = r"C:\Users\jasminee\MDMA\RU-MDMA\test\subject 15"
+    root_drive = r"C:\Users\jasminee\MDMA\RU-MDMA\test"
     combined = iterate_over_drive(root_drive)
     out_path = os.path.join(root_drive, "meta_data.csv")
     combined.to_csv(out_path, index=False)
