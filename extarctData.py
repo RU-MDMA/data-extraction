@@ -40,6 +40,7 @@ def iterate_over_drive(root):
                 file_path = os.path.join(dirpath, fname)
                 try:
                     df = read_csv_fill_NA(file_path)
+                    df = extract_metadata(df, str(file_path))
                     dfs.append(df)
                 except Exception as e:
                     print(f"Failed to process {file_path}: {e}")
@@ -50,11 +51,42 @@ def iterate_over_drive(root):
 
     # Combine all into one DataFrame
     combined = pd.concat(dfs, ignore_index=True)
-    out_path = os.path.join(root, "meta_data.csv")
-    combined.to_csv(out_path, index=False)
-    print(f"Combined DataFrame written to {out_path}")
+    print(combined)
     return combined
 
-# Update this to the folder you want to scan
-root_drive = r"./"
-iterate_over_drive(root_drive)
+def extract_metadata(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
+    """
+    Adds 'subject', 'meet', and 'state' columns to df by parsing
+    the last three folders in file_path. E.g.:
+
+        .../subject 15/meet 1/baseline/filename.csv
+
+    Args:
+        df:         pandas DataFrame to enrich
+        file_path: full path to the CSV file
+
+    Returns:
+        A new DataFrame with 'subject', 'meet', 'state' columns appended.
+    """
+    parts = os.path.normpath(file_path).split(os.sep)
+    # We expect at least 4 components: [..., subject, meet, state, filename]
+    if len(parts) >= 4:
+        subject, meet, state = parts[-4], parts[-3], parts[-2]
+    else:
+        subject = meet = state = "unknown"
+
+    out = df.copy()
+    out["subject"] = subject
+    out["meet"]    = meet
+    out["state"]   = state
+    return out
+
+def main():
+    # Update this to the folder you want to scan
+    root_drive = r"C:\Users\jasminee\MDMA\RU-MDMA\test\subject 15"
+    combined = iterate_over_drive(root_drive)
+    out_path = os.path.join(root_drive, "meta_data.csv")
+    combined.to_csv(out_path, index=False)
+    print(f"Combined DataFrame written to {out_path}")
+
+main()
