@@ -2,6 +2,9 @@ import os
 import csv
 import pandas as pd
 
+import DataAnalyzing
+
+
 def add_column_names(data_rows, max_cols):
     """
     Add generic column names to the data and return a DataFrame.
@@ -86,10 +89,11 @@ def extract_metadata(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
 
 def main():
     # Update this to the folder you want to scan
-    root_drive = r"C:\Users\jasminee\MDMA\RU-MDMA\test"
+    root_drive = r"C:\Users\97254\Downloads\DATA"
     combined = iterate_over_drive(root_drive)
     out_path = os.path.join(root_drive, "meta_data.csv")
     combined.to_csv(out_path, index=False)
     print(f"Combined DataFrame written to {out_path}")
+    DataAnalyzing.analyze(out_path)
 
 main()
