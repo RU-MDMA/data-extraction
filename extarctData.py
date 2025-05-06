@@ -2,23 +2,15 @@ import os
 import csv
 import pandas as pd
 
-import DataAnalyzing
 
-
-def add_column_names(data_rows, max_cols):
+def preprocess(file_path: str) -> pd.DataFrame:
     """
-    Add generic column names to the data and return a DataFrame.
+    Reads a CSV file, replaces empty cells with 'NA', and adds 'subject', 'meet', and 'state' columns
+    based on the file path. Pads short rows and returns a cleaned DataFrame.
+    The 'subject', 'meet', and 'state' columns are moved to the front of the DataFrame.
     """
-    col_names = [f"col{i+1}" for i in range(max_cols)]
-    return pd.DataFrame(data_rows, columns=col_names)
-
-def read_csv_fill_NA(path, delimiter=","):
-    """
-    Reads a CSV file, replaces empty cells with 'NA', and returns a DataFrame.
-    Pads short rows to the max number of columns found in the file.
-    """
-    with open(path, newline='', encoding="utf-8") as f:
-        reader = csv.reader(f, delimiter=delimiter)
+    with open(file_path, newline='', encoding="utf-8") as f:
+        reader = csv.reader(f)
         rows = []
         max_cols = 0
         for row in reader:
@@ -26,74 +18,68 @@ def read_csv_fill_NA(path, delimiter=","):
             rows.append(cleaned_row)
             max_cols = max(max_cols, len(cleaned_row))
 
-    # Pad all rows
+    # Pad all rows to match the maximum column length
     padded = [r + ["NA"] * (max_cols - len(r)) for r in rows]
-    
-    return add_column_names(padded, max_cols)
 
-def iterate_over_drive(root):
-    """
-    Recursively finds all .csv files under root, cleans each,
-    and returns a single concatenated DataFrame.
-    """
-    dfs = []
-    for dirpath, _, filenames in os.walk(root):
-        for fname in filenames:
+    # Add column names
+    col_names = [f"col{i + 1}" for i in range(max_cols)]
+    df = pd.DataFrame(padded, columns=col_names)
 
-            if fname.lower().endswith(".csv"):
-                file_path = os.path.join(dirpath, fname)
-                if "therapy" not in file_path.lower():
-                    try:
-                        df = read_csv_fill_NA(file_path)
-                        df = extract_metadata(df, str(file_path))
-                        dfs.append(df)
-                    except Exception as e:
-                        print(f"Failed to process {file_path}: {e}")
-
-    if not dfs:
-        print("No CSV files found under", root)
-        return None
-
-    # Combine all into one DataFrame
-    combined = pd.concat(dfs, ignore_index=True)
-    print(combined)
-    return combined
-
-def extract_metadata(df: pd.DataFrame, file_path: str) -> pd.DataFrame:
-    """
-    Adds 'subject', 'meet', and 'state' columns to df by parsing
-    the last three folders in file_path. E.g.:
-
-        .../subject 15/meet 1/baseline/filename.csv
-
-    Args:
-        df:         pandas DataFrame to enrich
-        file_path: full path to the CSV file
-
-    Returns:
-        A new DataFrame with 'subject', 'meet', 'state' columns appended.
-    """
+    # Add metadata from the file path
     parts = os.path.normpath(file_path).split(os.sep)
-    # We expect at least 4 components: [..., subject, meet, state, filename]
     if len(parts) >= 4:
         subject, meet, state = parts[-4], parts[-3], parts[-2]
     else:
         subject = meet = state = "unknown"
 
-    out = df.copy()
-    out["subject"] = subject
-    out["meet"]    = meet
-    out["state"]   = state
+    df["subject"] = subject
+    df["meet"] = meet
+    df["state"] = state
 
-    return out
+    # Move 'subject', 'meet', and 'state' to the front
+    cols = ['subject', 'meet', 'state'] + [col for col in df.columns if col not in ['subject', 'meet', 'state']]
+    df = df[cols]
 
-def main():
-    # Update this to the folder you want to scan
-    root_drive = r"C:\Users\97254\Downloads\DATA"
-    combined = iterate_over_drive(root_drive)
-    out_path = os.path.join(root_drive, "meta_data.csv")
-    combined.to_csv(out_path, index=False)
-    print(f"Combined DataFrame written to {out_path}")
-    DataAnalyzing.analyze(out_path)
+    return df
 
-main()
+
+def iterate_over_drive(root: str) -> pd.DataFrame:
+    """
+    Recursively finds all .csv files under the root, processes them using preprocess(),
+    and returns a single concatenated DataFrame.
+    """
+    dfs = []
+    for dirpath, _, filenames in os.walk(root):
+        for fname in filenames:
+            if fname.lower().endswith(".csv") and "therapy" not in fname.lower() and "meta_data" not in fname.lower():
+                file_path = os.path.join(dirpath, fname)
+                try:
+                    df = preprocess(file_path)
+                    dfs.append(df)
+                except Exception as e:
+                    print(f"Failed to process {file_path}: {e}")
+
+    if not dfs:
+        print(f"No CSV files found under {root}")
+        return None
+
+    # Combine all DataFrames into one
+    combined_df = pd.concat(dfs, ignore_index=True)
+    return combined_df
+
+
+def metaDataCsvCreator(root_path: str):
+    """
+    Creates a combined metadata CSV file from all CSVs in the root_path directory.
+    """
+    combined_df = iterate_over_drive(root_path)
+    if combined_df is not None:
+        out_path = os.path.join(root_path, "meta_data.csv")
+        combined_df.to_csv(out_path, index=False)
+        return out_path
+    else:
+        return None
+
+
+# Example usage
+metaDataCsvCreator(r"C:\Users\jasminee\MDMA\RU-MDMA\test")

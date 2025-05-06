@@ -1,8 +1,9 @@
 import os
 import numpy as np
 import pandas as pd
+
+
 def analyze(input_path):
-    ## input_path = r'C:\Users\97254\Downloads\DATA\meta_data.csv'
     df = pd.read_csv(input_path)
     subjects = [f"subject {i}" for i in range(12, 25)]
     meetings = [1, 2, 3, 5, 6, 7, 9, 10, 11, 18]
@@ -41,7 +42,7 @@ def analyze(input_path):
                 therapy_avg
             ])
 
-        create_df(input_path, subject, subject_rows)
+        create_csv(input_path, subject, subject_rows)
 
 def extract_baseline(df, subject, meet_str):
     baseline_value = df[
@@ -75,7 +76,7 @@ def extract_therapy(df, subject, meet_str):
     therapy_values = therapy_values_df["col2"].values[:4]
     return therapy_values
 
-def create_df(input_path, subject, subject_rows):
+def create_csv(input_path, subject, subject_rows):
     # Create DataFrame for the subject
     columns = [
         "Meeting", "Baseline HR", "Recovery HR",
