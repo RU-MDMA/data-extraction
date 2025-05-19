@@ -1,6 +1,7 @@
-import os
-import csv
 import pandas as pd
+import csv
+import os
+import re
 
 
 def preprocess(file_path: str) -> pd.DataFrame:
@@ -47,9 +48,20 @@ def iterate_over_drive(root: str) -> pd.DataFrame:
     """
     Recursively finds all .csv files under the root, processes them using preprocess(),
     and returns a single concatenated DataFrame.
+
     """
+    # match “meet ” + one or more digits, or "meet number'a',  case-insensitive
+    meet_dir_re = re.compile(r'^meet\s+\d+a?$', re.IGNORECASE)
+
     dfs = []
     for dirpath, _, filenames in os.walk(root):
+        dirname = os.path.basename(dirpath)
+
+        # skip any folder whose name isn't exactly "meet <digits>"
+        if dirname.lower().startswith('meet') and not meet_dir_re.match(dirname):
+            print(f"[INFO] Skipping directory '{dirpath}': invalid 'meet' format")
+            continue
+
         for fname in filenames:
             if fname.lower().endswith(".csv") and "therapy" not in fname.lower() and "meta_data" not in fname.lower():
                 file_path = os.path.join(dirpath, fname)
@@ -80,6 +92,3 @@ def metaDataCsvCreator(root_path: str):
     else:
         return None
 
-
-# Example usage
-metaDataCsvCreator(r"C:\Users\jasminee\MDMA\RU-MDMA\test")
