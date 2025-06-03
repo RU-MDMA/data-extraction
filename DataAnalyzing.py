@@ -7,6 +7,7 @@ def analyze(input_path):
     df = pd.read_csv(input_path)
     subjects = [f"subject {i}" for i in range(12, 25)]
     meetings = [1, 2, 3, 5, 6, 7, 9, 10, 11, 18]
+    state = ["baseline", "recovery"]
     for subject in subjects:
         subject_rows = []
 
