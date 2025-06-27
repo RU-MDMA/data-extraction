@@ -2,6 +2,7 @@ import extarctData
 import DataAnalyzing
 import os
 
+import filterMetaData
 import md
 import process
 
@@ -16,6 +17,5 @@ if __name__ == "__main__":
     pipeline = HRPipeline("C:/Users/97254/Downloads/DATA")
     meta_path = extarctData.metaDataCsvCreator(pipeline.root)
     # DataAnalyzing.analyze(meta_path)
-    md.analyze(meta_path)
-    process.execute()
+    filterMetaData.filter_metadata(meta_path)
 
