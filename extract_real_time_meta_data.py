@@ -1,8 +1,7 @@
 from typing import List
 import pandas as pd
 
-def extract_all_subjects_realtime_blocks(path):
-    df = pd.read_csv(path)
+def extract_all_subjects_realtime_blocks(df):
     list_of_subjects = list_subjects_from_df(df)
     print(f"Meta data contains subjects - {', '.join(list_of_subjects)}")
     all_blocks = []
@@ -108,12 +107,10 @@ def list_subjects_from_df(df: pd.DataFrame) -> list:
     )
     return sorted(subjects)
 
+def real_time_meta_data(path):
+    big_df = pd.read_csv(path)
+    real_time_df = extract_all_subjects_realtime_blocks(big_df)
+    returned_path = path.replace(".csv", "_real_time_meta_data.csv")
+    return returned_path, real_time_df.to_csv(returned_path, index=False)
 
-# Load CSV
-path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data.csv"
-path_3_test = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/TEST.csv"
 
-big_df = pd.read_csv(path)
-# print(extract_single_subject_blocks(big_df, 'subject 12'))
-TEST_DF = extract_all_subjects_realtime_blocks(path)
-TEST_DF.to_csv(path_3_test)
