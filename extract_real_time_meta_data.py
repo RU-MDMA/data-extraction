@@ -1,47 +1,119 @@
+from typing import List
 import pandas as pd
 
-def extract_subject_realtime_data(file_path: str, subject_filter: str = "subject 16") -> pd.DataFrame:
-    # Load the file
-    df = pd.read_csv(file_path)
+def extract_all_subjects_realtime_blocks(path):
+    df = pd.read_csv(path)
+    list_of_subjects = list_subjects_from_df(df)
+    print(f"Meta data contains subjects - {', '.join(list_of_subjects)}")
+    all_blocks = []
+    for subject in list_of_subjects:
+        subject_full_block = extract_single_subject_blocks(df, subject)
+        if not subject_full_block.empty:
+            all_blocks.append(subject_full_block)
+    return pd.concat(all_blocks, ignore_index=True) if all_blocks else pd.DataFrame()
 
-    # Locate the header rows: search for row containing 'Time' and next one with '(hh:mm:ss)'
+def extract_single_subject_blocks(df: pd.DataFrame, subject: str) -> pd.DataFrame:
+    meetings = list_meetings_for_subjects(df, subject)
+    all_blocks = []
+    print(f"{subject} has {len(meetings)} meetings")
+
+    for meeting in meetings:
+        print(f"Adding meet {meeting}")
+        sub_df = sub_data_frame_for_meet(df, subject, meeting)
+        sub_df = sub_df[sub_df['subject'].astype(str).str.strip() == subject]  # filter subject
+        block_df = extract_real_time_block(sub_df)
+
+        if not block_df.empty:
+            all_blocks.append(block_df)
+
+    return pd.concat(all_blocks, ignore_index=True) if all_blocks else pd.DataFrame()
+
+def list_meetings_for_subjects(df: pd.DataFrame, subject: str) -> list[int]:
+    filtered = df[df['subject'].astype(str).str.strip() == subject]
+    meets = (
+        filtered['meet']
+        .dropna()
+        .astype(str)
+        .str.extract(r'(\d+)')[0]
+        .dropna()
+        .astype(int)
+        .unique()
+    )
+    return sorted(meets.tolist())
+
+def sub_data_frame_for_meet(df: pd.DataFrame, subject: str, meeting_number: int) -> pd.DataFrame:
+
+    df_copy = df.copy()
+
+    # Normalize subject field
+    df_copy["__subject__"] = df_copy["subject"].astype(str).str.strip()
+
+    # Normalize meeting number field
+    df_copy["__meet_num__"] = (
+        df_copy["meet"]
+        .astype(str)
+        .str.extract(r"(\d+)", expand=False)
+        .astype(float)
+        .fillna(-1)
+        .astype(int)
+    )
+
+    filtered = df_copy[
+        (df_copy["__subject__"] == subject) &
+        (df_copy["__meet_num__"] == meeting_number)
+    ]
+
+    return filtered.drop(columns=["__subject__", "__meet_num__"]).reset_index(drop=True)
+
+
+def extract_real_time_block(df: pd.DataFrame) -> pd.DataFrame:
+
+    rt_blocks = []
+
     for i in range(len(df) - 1):
-        header1 = df.iloc[i, 3:].fillna("").astype(str).str.strip()
-        header2 = df.iloc[i + 1, 3:].fillna("").astype(str).str.strip()
+        row1 = df.iloc[i, 3:].fillna("").astype(str).str.strip()
+        row2 = df.iloc[i + 1, 3:].fillna("").astype(str).str.strip()
 
-        if "Time" in header1.values.tolist() and "(hh:mm:ss)" in header2.values.tolist():
-            data_start_index = i + 2  # actual data begins here
-            break
-    else:
-        raise ValueError("Real-time data headers not found in the file.")
+        if "Time" in row1.values.tolist() and "(hh:mm:ss)" in row2.values.tolist():
+            full_header = (row1 + " " + row2).str.replace(" +", " ", regex=True).str.strip()
 
-    # Combine headers
-    full_header = (header1 + " " + header2).str.replace(" +", " ", regex=True).str.strip()
+            # Extract data rows until a blank line
+            data_rows = []
+            for j in range(i + 2, len(df)):
+                row = df.iloc[j, 3:]
+                if row.isna().all():
+                    break
+                data_rows.append(row.tolist())
 
-    # Extract subject info from metadata columns
-    subject_info = df.loc[i, ['subject', 'meet', 'state']].values.tolist()
+            if data_rows:
+                block_df = pd.DataFrame(data_rows, columns=full_header)
+                block_df.insert(0, "subject", df.loc[i, "subject"])
+                block_df.insert(1, "meet", df.loc[i, "meet"])
+                block_df.insert(2, "state", df.loc[i, "state"])
+                rt_blocks.append(block_df)
 
-    # Read data rows until the next fully NaN row
-    data_rows = []
-    for j in range(data_start_index, len(df)):
-        row = df.iloc[j, 3:]
-        if row.isna().all():
-            break
-        data_rows.append(row.tolist())
+    return pd.concat(rt_blocks, ignore_index=True) if rt_blocks else pd.DataFrame()
 
-    # Build DataFrame
-    result_df = pd.DataFrame(data_rows, columns=full_header)
-    result_df.insert(0, "subject", subject_info[0])
-    result_df.insert(1, "meet", subject_info[1])
-    result_df.insert(2, "state", subject_info[2])
+def load_metadata_csv(file_path: str) -> pd.DataFrame:
+    return pd.read_csv(file_path)
 
-    # Filter for subject 16 if requested
-    if subject_filter:
-        result_df = result_df[result_df["subject"].str.strip().eq(subject_filter)]
+def list_subjects_from_df(df: pd.DataFrame) -> list:
 
-    return result_df.reset_index(drop=True)
+    subjects = (
+        df['subject']
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .unique()
+    )
+    return sorted(subjects)
 
 
+# Load CSV
 path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data.csv"
-df_subject16 = extract_subject_realtime_data(path, subject_filter="subject 16")
-print(df_subject16.head())
+path_3_test = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/TEST.csv"
+
+big_df = pd.read_csv(path)
+# print(extract_single_subject_blocks(big_df, 'subject 12'))
+TEST_DF = extract_all_subjects_realtime_blocks(path)
+TEST_DF.to_csv(path_3_test)
