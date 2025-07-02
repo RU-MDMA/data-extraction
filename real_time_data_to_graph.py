@@ -11,7 +11,6 @@ PARAMETER_NAME = 'Mean HR'          # Change to any parameter name from the Exce
 
 # === Load and clean data ===
 def load_clean_data(filepath, parameter_name):
-    print(filepath)
     df = pd.read_csv(filepath)
     df.columns = df.columns.str.strip()
 
@@ -19,24 +18,41 @@ def load_clean_data(filepath, parameter_name):
     param_col = [col for col in df.columns if parameter_name in col][0]
     print("Using parameter column:", param_col)
 
-    # Find the actual time column
+    # Find the time column
     time_col = [col for col in df.columns if 'Time' in col and 'hh' in col][0]
     print("Using time column:", time_col)
 
-    df = df[pd.to_numeric(df['sub'], errors='coerce').notnull()].copy()
-    df['sub'] = df['sub'].astype(int)
-    df['meeting'] = df['meeting'].astype(int)
+    # Clean and prepare
+    df = df.copy()
+    df['sub'] = df['sub'].str.extract(r'(\d+)').astype(int)
+    df['meeting'] = df['meeting'].str.extract(r'(\d+)').astype(int)
     df[param_col] = pd.to_numeric(df[param_col], errors='coerce')
-    df.rename(columns={param_col: 'value', time_col: 'Time'}, inplace=True)
+    df.rename(columns={
+        param_col: 'value',
+        time_col: 'Time',
+        'subject': 'sub',
+        'meet': 'meeting'
+    }, inplace=True)
 
     df['state'] = df['state'].str.strip().str.lower()
-    df['therapy'] = df['therapy'].astype(str).str.strip().str.upper()
+    if 'therapy' not in df.columns:
+        df['therapy'] = ''
+    else:
+        df['therapy'] = df['therapy'].astype(str).str.strip().str.upper()
     df['Time'] = df['Time'].astype(str).str.strip()
+
     return df
+
 
 #VERSION 2 - SHOWS EMPTY SPACE FOR NAN DATA
 def plot_subject_meetings(df, subject_id, parameter_name, output_dir):
-    subject_data = df[df['sub'] == subject_id]
+    subject_data = df[df['sub'] == subject_id].copy()
+    min_val = subject_data['value'].min()
+    max_val = subject_data['value'].max()
+
+    if pd.notnull(min_val) and pd.notnull(max_val) and max_val != min_val:
+        subject_data['value'] = (subject_data['value'] - min_val) / (max_val - min_val)
+
     meetings = sorted(subject_data['meeting'].unique())
 
     fig, axs = plt.subplots(4, 3, figsize=(18, 12))
@@ -98,20 +114,30 @@ def plot_subject_meetings(df, subject_id, parameter_name, output_dir):
 
         # === Draw the bars ===
         bar_container = ax.bar(range(len(bars)), bars, color=colors)
-        ax.set_title(f"Meet {meeting}", fontsize=12)
+        ax.set_title(f"Meet {meeting}\n(min={min_val}, max={max_val})", fontsize=10)
         ax.set_xlabel("Time (HH:MM)", fontsize=10)
         ax.set_ylabel(parameter_name, fontsize=10)
 
-        # X-axis label handling
-        if len(xtick_labels) > 20:
-            visible_ticks = list(range(0, len(xtick_labels), 5))
-            ax.set_xticks(visible_ticks)
-            ax.set_xticklabels([xtick_labels[i] for i in visible_ticks], rotation=45, ha='right', fontsize=6)
-        else:
-            ax.set_xticks(range(len(xtick_labels)))
-            ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=6)
+        # === drawing red line to mark average ===
+        ax.bar(range(len(bars)), bars, color=colors)
 
-    # Remove unused subplots
+    """ Add red line for mean value (excluding gray/missing data)
+        valid_values = [v for v, c in zip(bars, colors) if c != 'lightgray']
+        if valid_values:
+            mean_val = sum(valid_values) / len(valid_values)
+            ax.axhline(mean_val, color='red', linestyle='--', linewidth=1.2, label='Mean')"""
+
+
+    # X-axis label handling
+    if len(xtick_labels) > 20:
+        visible_ticks = list(range(0, len(xtick_labels), 5))
+        ax.set_xticks(visible_ticks)
+        ax.set_xticklabels([xtick_labels[i] for i in visible_ticks], rotation=45, ha='right', fontsize=6)
+    else:
+        ax.set_xticks(range(len(xtick_labels)))
+        ax.set_xticklabels(xtick_labels, rotation=45, ha='right', fontsize=6)
+
+# Remove unused subplots
     for j in range(len(meetings), len(axs)):
         fig.delaxes(axs[j])
 
@@ -124,10 +150,11 @@ def plot_subject_meetings(df, subject_id, parameter_name, output_dir):
     ], loc='lower right', fontsize=10)
 
     plt.tight_layout()
-    filename = f"subject_{subject_id}_{parameter_name.replace(' ', '_').lower()}_analysis.png"
+    filename = f'subject_{subject_id}_{parameter_name.replace(" ", "_").lower()}_analysis.png'
     plt.savefig(os.path.join(output_dir, filename), dpi=300)
     plt.close()
     print(f"✅ Saved: {filename}")
+
 
 # === Run the script ===
 def generate_graphs(excel_path, parameter, subject_id, output_dir):
@@ -141,6 +168,7 @@ def generate_graphs_for_all_subjects(excel_path, parameter, output_dir="."):
     """
     print(f"Loading data from: {excel_path}")
     df = load_clean_data(excel_path, parameter)
+
     subject_ids = df['sub'].dropna().astype(int).unique()
     os.makedirs(output_dir, exist_ok=True)
 
@@ -153,5 +181,3 @@ def generate_graphs_for_all_subjects(excel_path, parameter, output_dir="."):
             print(f"     Error for subject {sid}: {e}")
 
     print("All subject graphs generated.")
-
-

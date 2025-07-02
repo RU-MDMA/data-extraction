@@ -1,5 +1,6 @@
 from typing import List
 import pandas as pd
+import re
 
 def extract_all_subjects_realtime_blocks(df):
     list_of_subjects = list_subjects_from_df(df)
@@ -66,32 +67,57 @@ def sub_data_frame_for_meet(df: pd.DataFrame, subject: str, meeting_number: int)
 
 
 def extract_real_time_block(df: pd.DataFrame) -> pd.DataFrame:
-
+    """
+    Pulls out all time‐series HRV blocks (baseline, therapy, recovery, etc.)
+    from a meta_data DataFrame that has columns:
+      ['subject','meet','state','therapy', <metrics...>]
+    """
     rt_blocks = []
 
+    # scan every adjacent row pair for our two‐line header
     for i in range(len(df) - 1):
-        row1 = df.iloc[i, 3:].fillna("").astype(str).str.strip()
-        row2 = df.iloc[i + 1, 3:].fillna("").astype(str).str.strip()
+        # <-- START AT COL 4 to skip subject/meet/state/therapy -->
+        row1 = df.iloc[i, 4 :].fillna("").astype(str).str.strip()
+        row2 = df.iloc[i + 1, 4 :].fillna("").astype(str).str.strip()
 
-        if "Time" in row1.values.tolist() and "(hh:mm:ss)" in row2.values.tolist():
-            full_header = (row1 + " " + row2).str.replace(" +", " ", regex=True).str.strip()
+        # detect header: first line has "Time", second has "(hh:mm:ss)"
+        if row1.str.contains("Time", regex=False).any() \
+        and row2.str.contains(r"\(hh:mm:ss\)", regex=True).any():
+            # build unique full header names by zipping row1 & row2
+            seen = {}
+            full_header = []
+            for h1, h2 in zip(row1.tolist(), row2.tolist()):
+                name = f"{h1} {h2}".strip()
+                name = re.sub(r"\s+", " ", name)
+                if name in seen:
+                    seen[name] += 1
+                    name = f"{name}.{seen[name]}"
+                else:
+                    seen[name] = 0
+                full_header.append(name)
 
-            # Extract data rows until a blank line
+            # collect the numeric rows immediately after header
             data_rows = []
+            time_idx = next(idx for idx, h in enumerate(full_header) if h.startswith("Time"))
             for j in range(i + 2, len(df)):
-                row = df.iloc[j, 3:]
-                if row.isna().all():
+                cell = str(df.iat[j, 4 + time_idx]).strip()
+                # stop when Time column no longer matches hh:mm:ss
+                if not re.match(r"^\d{2}:\d{2}:\d{2}$", cell):
                     break
-                data_rows.append(row.tolist())
+                data_rows.append(df.iloc[j, 4 :].tolist())
 
             if data_rows:
                 block_df = pd.DataFrame(data_rows, columns=full_header)
-                block_df.insert(0, "subject", df.loc[i, "subject"])
-                block_df.insert(1, "meet", df.loc[i, "meet"])
-                block_df.insert(2, "state", df.loc[i, "state"])
+                # prepend metadata columns in correct order
+                block_df.insert(0, "therapy", df.iat[i, 3])
+                block_df.insert(0,   "state", df.iat[i, 2])
+                block_df.insert(0,    "meeting", df.iat[i, 1])
+                block_df.insert(0,  "sub", df.iat[i, 0])
                 rt_blocks.append(block_df)
 
+    # combine all blocks (or return empty DF)
     return pd.concat(rt_blocks, ignore_index=True) if rt_blocks else pd.DataFrame()
+
 
 def load_metadata_csv(file_path: str) -> pd.DataFrame:
     return pd.read_csv(file_path)
@@ -107,10 +133,63 @@ def list_subjects_from_df(df: pd.DataFrame) -> list:
     )
     return sorted(subjects)
 
+# def make_unique_headers(headers: List[str]) -> List[str]:
+#     seen = {}
+#     unique_headers = []
+#
+#     for col in headers:
+#         col = col.strip()
+#         if col not in seen:
+#             seen[col] = 1
+#             unique_headers.append(col)
+#         else:
+#             count = seen[col]
+#             new_col = f"{col}_{count}"
+#             while new_col in seen:
+#                 count += 1
+#                 new_col = f"{col}_{count}"
+#             seen[col] = count + 1
+#             seen[new_col] = 1
+#             unique_headers.append(new_col)
+#
+#     return unique_headers
+
+# def align_row_to_header(row_list, header_len):
+#     row_list = row_list[:header_len]
+#     return row_list + [""] * (header_len - len(row_list))
+
+
+
+
+def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return a copy of df with columns 'D' and 'E' removed if they contain
+    only NaN or empty-string values.
+    """
+    df_clean = df.copy()
+    for col in [""]:
+        if col in df_clean.columns:
+            # build mask: True for NaN or blank-string
+            empty_mask = df_clean[col].isna() | (df_clean[col].astype(str).str.strip() == "")
+            if empty_mask.all():
+                df_clean.drop(columns=[col], inplace=True)
+    return df_clean
+
+
+
 def real_time_meta_data(path):
     big_df = pd.read_csv(path)
+    big_df.columns = big_df.columns.str.strip()
     real_time_df = extract_all_subjects_realtime_blocks(big_df)
+    final_df = drop_empty_D_E(real_time_df)
     returned_path = path.replace(".csv", "_real_time_meta_data.csv")
-    return returned_path, real_time_df.to_csv(returned_path, index=False)
+    return returned_path, final_df.to_csv(returned_path, index=False)
 
 
+# raw_df = pd.read_csv("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data.csv", header=None, dtype=str)
+#
+# # 2) call the slicer for, say, subject 15, meeting 1, therapy‐block D:
+# full_df = extract_real_time_block(raw_df)
+# final_df = drop_empty_D_E(full_df)
+#
+# final_df.to_csv("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/TESTBLOCK.csv", index=False)
