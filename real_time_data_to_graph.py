@@ -43,8 +43,6 @@ def load_clean_data(filepath, parameter_name):
 
     return df
 
-
-#VERSION 2 - SHOWS EMPTY SPACE FOR NAN DATA
 def plot_subject_meetings(df, subject_id, parameter_name, output_dir):
     subject_data = df[df['sub'] == subject_id].copy()
     min_val = subject_data['value'].min()
@@ -156,7 +154,6 @@ def plot_subject_meetings(df, subject_id, parameter_name, output_dir):
     print(f"✅ Saved: {filename}")
 
 
-# === Run the script ===
 def generate_graphs(excel_path, parameter, subject_id, output_dir):
     df = load_clean_data(excel_path, parameter)
     os.makedirs(output_dir, exist_ok=True)

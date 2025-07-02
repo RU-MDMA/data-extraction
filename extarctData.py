@@ -50,7 +50,7 @@ def iterate_over_drive(root: str) -> pd.DataFrame:
     Recursively finds all .csv files under the root, processes them using preprocess(),
     and returns a single concatenated DataFrame.
     """
-    meet_dir_re = re.compile(r'^meet\s+\d+a?$', re.IGNORECASE)
+    meet_dir_re = re.compile(r'^\s*meet\s+\d+a?\s*$', re.IGNORECASE)
 
     dfs = []
     for dirpath, _, filenames in os.walk(root):

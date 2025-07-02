@@ -133,33 +133,6 @@ def list_subjects_from_df(df: pd.DataFrame) -> list:
     )
     return sorted(subjects)
 
-# def make_unique_headers(headers: List[str]) -> List[str]:
-#     seen = {}
-#     unique_headers = []
-#
-#     for col in headers:
-#         col = col.strip()
-#         if col not in seen:
-#             seen[col] = 1
-#             unique_headers.append(col)
-#         else:
-#             count = seen[col]
-#             new_col = f"{col}_{count}"
-#             while new_col in seen:
-#                 count += 1
-#                 new_col = f"{col}_{count}"
-#             seen[col] = count + 1
-#             seen[new_col] = 1
-#             unique_headers.append(new_col)
-#
-#     return unique_headers
-
-# def align_row_to_header(row_list, header_len):
-#     row_list = row_list[:header_len]
-#     return row_list + [""] * (header_len - len(row_list))
-
-
-
 
 def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -186,10 +159,4 @@ def real_time_meta_data(path):
     return returned_path, final_df.to_csv(returned_path, index=False)
 
 
-# raw_df = pd.read_csv("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data.csv", header=None, dtype=str)
-#
-# # 2) call the slicer for, say, subject 15, meeting 1, therapy‐block D:
-# full_df = extract_real_time_block(raw_df)
-# final_df = drop_empty_D_E(full_df)
-#
-# final_df.to_csv("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/TESTBLOCK.csv", index=False)
+
