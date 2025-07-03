@@ -1,30 +1,12 @@
-import os
-import extract_real_time_meta_data
 import real_time_data_to_graph
-
-import md
-import process
 
 
 class HRPipeline:
-    def __init__(self, root_dir):
+    def __init__(self, root_dir, parameter):
         self.root = root_dir
-        self.meta_path = None
+        self.parameter = parameter
 
 
 if __name__ == "__main__":
-    pipeline = HRPipeline("/Users/jasmineerell/Documents/CS-second-year/MDMA/data")
-
-    # meta_path = extarctData.metaDataCsvCreator(pipeline.root)
-    # DataAnalyzing.analyze(meta_path)
-    # md.analyze(meta_path)
-    # process.execute()
-
-    meta_data_path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data.csv"
-
-    raw_metadata_path = os.path.join(pipeline.root, meta_data_path)
-    real_time_path, _ = extract_real_time_meta_data.real_time_meta_data(raw_metadata_path)
-    #
-    # parameter = "Mean HR"  # Make sure it exactly matches the column name
-    # csv_path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data_real_time_meta_data.csv"
-    # real_time_data_to_graph.generate_graphs_for_all_subjects(csv_path, parameter, output_dir=".")
+    pipeline = HRPipeline("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data_real_time_meta_data.csv","Mean HR")
+    real_time_data_to_graph.generate_graphs_for_all_subjects(pipeline.root, pipeline.parameter, output_dir=".")
