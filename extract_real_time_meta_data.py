@@ -3,25 +3,25 @@ import pandas as pd
 import re
 
 def extract_all_subjects_realtime_blocks(df):
-    list_of_subjects = list_subjects_from_df(df)
+    list_of_subjects = get_list_subjects_from_df(df)
     print(f"Meta data contains subjects - {', '.join(list_of_subjects)}")
     all_blocks = []
     for subject in list_of_subjects:
-        subject_full_block = extract_single_subject_blocks(df, subject)
+        subject_full_block = get_single_subject_all_blocks(df, subject)
         if not subject_full_block.empty:
             all_blocks.append(subject_full_block)
     return pd.concat(all_blocks, ignore_index=True) if all_blocks else pd.DataFrame()
 
-def extract_single_subject_blocks(df: pd.DataFrame, subject: str) -> pd.DataFrame:
+def get_single_subject_all_blocks(df, subject):
     meetings = list_meetings_for_subjects(df, subject)
     all_blocks = []
     print(f"{subject} has {len(meetings)} meetings")
 
     for meeting in meetings:
         print(f"Adding meet {meeting}")
-        sub_df = sub_data_frame_for_meet(df, subject, meeting)
-        sub_df = sub_df[sub_df['subject'].astype(str).str.strip() == subject]  # filter subject
-        block_df = extract_real_time_block(sub_df)
+        sub_df = sub_df_for_specific_subject_meet(df, subject, meeting)
+        # sub_df = sub_df[sub_df['subject'].astype(str).str.strip() == subject]  # filter subject
+        block_df = get_segments(sub_df)
 
         if not block_df.empty:
             all_blocks.append(block_df)
@@ -41,14 +41,9 @@ def list_meetings_for_subjects(df: pd.DataFrame, subject: str) -> list[int]:
     )
     return sorted(meets.tolist())
 
-def sub_data_frame_for_meet(df: pd.DataFrame, subject: str, meeting_number: int) -> pd.DataFrame:
-
+def sub_df_for_specific_subject_meet(df, subject, meeting_number):
     df_copy = df.copy()
-
-    # Normalize subject field
     df_copy["__subject__"] = df_copy["subject"].astype(str).str.strip()
-
-    # Normalize meeting number field
     df_copy["__meet_num__"] = (
         df_copy["meet"]
         .astype(str)
@@ -58,20 +53,11 @@ def sub_data_frame_for_meet(df: pd.DataFrame, subject: str, meeting_number: int)
         .astype(int)
     )
 
-    filtered = df_copy[
-        (df_copy["__subject__"] == subject) &
-        (df_copy["__meet_num__"] == meeting_number)
-    ]
-
+    filtered = df_copy[(df_copy["__subject__"] == subject) & (df_copy["__meet_num__"] == meeting_number)]
     return filtered.drop(columns=["__subject__", "__meet_num__"]).reset_index(drop=True)
 
+def get_segments(df: pd.DataFrame) -> pd.DataFrame:
 
-def extract_real_time_block(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Pulls out all time‐series HRV blocks (baseline, therapy, recovery, etc.)
-    from a meta_data DataFrame that has columns:
-      ['subject','meet','state','therapy', <metrics...>]
-    """
     rt_blocks = []
 
     # scan every adjacent row pair for our two‐line header
@@ -81,9 +67,8 @@ def extract_real_time_block(df: pd.DataFrame) -> pd.DataFrame:
         row2 = df.iloc[i + 1, 4 :].fillna("").astype(str).str.strip()
 
         # detect header: first line has "Time", second has "(hh:mm:ss)"
-        if row1.str.contains("Time", regex=False).any() \
-        and row2.str.contains(r"\(hh:mm:ss\)", regex=True).any():
-            # build unique full header names by zipping row1 & row2
+        if row1.str.contains("Time", regex=False).any() and row2.str.contains(r"\(hh:mm:ss\)", regex=True).any():
+            #build unique full header names by zipping row1 & row2
             seen = {}
             full_header = []
             for h1, h2 in zip(row1.tolist(), row2.tolist()):
@@ -118,11 +103,10 @@ def extract_real_time_block(df: pd.DataFrame) -> pd.DataFrame:
     # combine all blocks (or return empty DF)
     return pd.concat(rt_blocks, ignore_index=True) if rt_blocks else pd.DataFrame()
 
-
 def load_metadata_csv(file_path: str) -> pd.DataFrame:
     return pd.read_csv(file_path)
 
-def list_subjects_from_df(df: pd.DataFrame) -> list:
+def get_list_subjects_from_df(df: pd.DataFrame) -> list:
 
     subjects = (
         df['subject']
@@ -132,7 +116,6 @@ def list_subjects_from_df(df: pd.DataFrame) -> list:
         .unique()
     )
     return sorted(subjects)
-
 
 def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -148,11 +131,9 @@ def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
                 df_clean.drop(columns=[col], inplace=True)
     return df_clean
 
-
-
 def real_time_meta_data(path):
     big_df = pd.read_csv(path)
-    big_df.columns = big_df.columns.str.strip()
+    # big_df.columns = big_df.columns.str.strip()
     real_time_df = extract_all_subjects_realtime_blocks(big_df)
     final_df = drop_empty_D_E(real_time_df)
     returned_path = path.replace(".csv", "_real_time_meta_data.csv")

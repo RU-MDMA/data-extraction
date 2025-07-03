@@ -115,6 +115,7 @@ def process_excel(input_path, output_path):
             ws.append([])  # שורת רווח בין baseline ל-recovery
 
     wb.save(output_path)
+
 def execute() :
 # שימוש:
     folder_path = Path("C:/Users/97254/PycharmProjects/data-extraction/patients_excel")
