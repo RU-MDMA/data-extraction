@@ -1,4 +1,5 @@
-import real_time_data_to_graph
+import block_to_graph
+import extract_block
 
 
 class HRPipeline:
@@ -8,5 +9,6 @@ class HRPipeline:
 
 
 if __name__ == "__main__":
-    pipeline = HRPipeline("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data_real_time_meta_data.csv","Mean HR")
-    real_time_data_to_graph.generate_graphs_for_all_subjects(pipeline.root, pipeline.parameter, output_dir=".")
+    pipeline = HRPipeline(root_dir = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data1/meta_data.csv", parameter= "Mean HR")
+    block, temp = extract_block.create_block(pipeline.root)
+    block_to_graph.generate_graphs_for_all_subjects(block, pipeline.parameter, output_dir=".")

@@ -131,7 +131,7 @@ def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
                 df_clean.drop(columns=[col], inplace=True)
     return df_clean
 
-def real_time_meta_data(path):
+def create_block(path):
     big_df = pd.read_csv(path)
     # big_df.columns = big_df.columns.str.strip()
     real_time_df = extract_all_subjects_realtime_blocks(big_df)

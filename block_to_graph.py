@@ -153,7 +153,6 @@ def plot_subject_meetings(df, subject_id, parameter_name, output_dir):
     plt.close()
     print(f"✅ Saved: {filename}")
 
-
 def generate_graphs(excel_path, parameter, subject_id, output_dir):
     df = load_clean_data(excel_path, parameter)
     os.makedirs(output_dir, exist_ok=True)

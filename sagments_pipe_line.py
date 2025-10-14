@@ -1,4 +1,4 @@
-import extract_real_time_meta_data
+import extract_block
 
 class HRPipeline:
     def __init__(self, root_dir):
@@ -6,5 +6,5 @@ class HRPipeline:
 
 
 if __name__ == "__main__":
-    pipeline = HRPipeline("/Users/jasmineerell/Documents/CS-second-year/MDMA/data")
-    real_time_meta_data = extract_real_time_meta_data.real_time_meta_data(pipeline.root)
+    pipeline = HRPipeline("/Users/jasmineerell/Documents/CS-second-year/MDMA/data/meta_data.csv")
+    real_time_meta_data = extract_block.create_block(pipeline.root)
