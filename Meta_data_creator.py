@@ -3,6 +3,8 @@ import csv
 import os
 import re
 
+"Takes a directory with patients data, and creates in the same directory a meta_data.csv file"
+
 
 def preprocess(file_path: str, type_value: str = "") -> pd.DataFrame:
     """
