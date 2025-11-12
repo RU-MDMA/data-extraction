@@ -1,59 +1,106 @@
 #!/usr/bin/env python3
 import pandas as pd
+import numpy as np
 
+COMBINED_LABEL = "meet 1-3 median"   # ASCII label for Excel friendliness
 
-def extract_meeting_num_list(series: pd.Series) -> pd.Series:
-    """Extract numeric meeting index (e.g. 'meet 1' → 1)"""
+def extract_meeting_num(s: pd.Series) -> pd.Series:
     return (
-        series.astype(str)
-        .str.extract(r"(\d+)", expand=False)
-        .astype("Int64")
+        s.astype(str)
+         .str.extract(r"(\d+)", expand=False)
+         .astype("Int64")            # nullable int (allows <NA>)
     )
 
+def safe_mode(series: pd.Series):
+    """Mode if available; else first non-null; else NaN."""
+    m = series.mode(dropna=True)
+    if not m.empty:
+        return m.iat[0]
+    nn = series.dropna()
+    return nn.iat[0] if not nn.empty else np.nan
 
-def export_meetings_1_2_3_to_df(input_csv: str, output_csv: str) -> None:
+def median_per_sample_across_m123(input_csv: str, output_csv: str) -> None:
     df = pd.read_csv(input_csv)
 
-    # Validate column
     if "meeting" not in df.columns:
-        raise KeyError("Expected a 'meeting' column in the CSV.")
+        raise KeyError("Expected a 'meeting' column.")
+    if "sub" not in df.columns:
+        raise KeyError("Expected a 'sub' column.")
 
-    # Extract meeting numbers
-    df["meeting_num"] = extract_meeting_num_list(df["meeting"])
+    df = df.copy()
+    df["meeting_num"] = extract_meeting_num(df["meeting"])
 
-    print("\n=== Counts BEFORE filtering ===")
-    before = (
-        df[df["meeting_num"].isin([1, 2, 3])]
-        .groupby(["sub", "meeting_num"])
-        .size()
-        .unstack(fill_value=0)
-    )
-    print(before)
+    # Sort key (time preferred; otherwise original order)
+    time_col = next((c for c in ["Time (hh:mm:ss)", "time", "Time"] if c in df.columns), None)
+    if time_col:
+        df["_sort_key"] = pd.to_timedelta(df[time_col].astype(str), errors="coerce").dt.total_seconds()
+    else:
+        df["_sort_key"] = np.arange(len(df))
 
-    # Filter meetings 1, 2, 3
+    # Use only meetings 1–3
     df_123 = df[df["meeting_num"].isin([1, 2, 3])].copy()
+    if df_123.empty:
+        raise ValueError("No rows found for meetings 1–3.")
 
-    print("\n=== Counts AFTER filtering (should be identical) ===")
-    after = (
-        df_123.groupby(["sub", "meeting_num"])
-        .size()
-        .unstack(fill_value=0)
+    # Group per subject AND state (so state is preserved)
+    group_axes = ["sub"]
+    if "state" in df_123.columns:
+        group_axes.append("state")
+
+    # Sample index within (sub, state, meeting) ordered by time/_sort_key
+    df_123 = df_123.sort_values(group_axes + ["meeting_num", "_sort_key"])
+    df_123["sample_idx"] = df_123.groupby(group_axes + ["meeting_num"]).cumcount() + 1
+
+    # Numeric columns to aggregate
+    numeric_cols = df_123.select_dtypes(include="number").columns.tolist()
+    for helper in ["meeting_num", "_sort_key"]:
+        if helper in numeric_cols:
+            numeric_cols.remove(helper)
+
+    # Median across meetings 1–3 for each (sub, state, sample_idx)
+    med_numeric = (
+        df_123.groupby(group_axes + ["sample_idx"], as_index=False)[numeric_cols]
+              .median()
     )
-    print(after)
 
-    # Sort nicely and export
-    sort_cols = [c for c in ["sub", "state", "meeting_num", "meeting", "therapy"] if c in df_123.columns]
-    if sort_cols:
-        df_123 = df_123.sort_values(sort_cols)
+    # Non-numeric columns: keep representative value (mode/first) PER (sub, state, sample_idx)
+    non_numeric_cols = [c for c in df_123.columns if c not in numeric_cols]
+    for dropc in ["meeting_num", "_sort_key"]:
+        if dropc in non_numeric_cols:
+            non_numeric_cols.remove(dropc)
 
-    df_123.drop(columns=["meeting_num"], inplace=True)
-    df_123.to_csv(output_csv, index=False)
-    print(f"\n✅ Wrote: {output_csv}")
-    print(f"Total rows exported: {len(df_123)}")
+    rep_non_numeric = (
+        df_123.groupby(group_axes + ["sample_idx"], as_index=False)[non_numeric_cols]
+              .agg(safe_mode)
+    )
 
+    # Merge back
+    combined = pd.merge(rep_non_numeric, med_numeric, on=group_axes + ["sample_idx"], how="left")
 
+    # Set final meeting name; DO NOT touch state/therapy
+    combined["meeting"] = COMBINED_LABEL
+
+    # Reorder like original and drop sample_idx in the CSV
+    original_cols = df.columns.tolist()
+    for hc in ["meeting_num", "_sort_key"]:
+        if hc in original_cols:
+            original_cols.remove(hc)
+    if "meeting" not in original_cols:
+        original_cols.insert(1, "meeting")
+    if "sample_idx" in original_cols:
+        original_cols.remove("sample_idx")
+
+    final_cols = [c for c in original_cols if c in combined.columns] + \
+                 [c for c in combined.columns if c not in original_cols and c != "sample_idx"]
+    combined = combined.reindex(columns=final_cols)
+
+    # Save (utf-8-sig helps Excel)
+    combined.to_csv(output_csv, index=False, encoding="utf-8-sig")
+    print(f"✅ Wrote: {output_csv} | rows: {len(combined)}")
+
+# ----- Run directly from PyCharm -----
 if __name__ == "__main__":
-    export_meetings_1_2_3_to_df(
+    median_per_sample_across_m123(
         "/Users/jasmineerell/Documents/Research/block_test.csv",
-        "/Users/jasmineerell/Documents/Research/meetings_1_2_3_by_sub_state.csv"
+        "/Users/jasmineerell/Documents/Research/block_test_per_sample_median.csv"
     )
