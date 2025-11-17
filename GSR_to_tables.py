@@ -2,12 +2,13 @@ import os
 import pandas as pd
 SAMPLING_RATE = 10
 CONDITIONS = ['neut1', 'stress', 'neut2', 'trauma']
+#[duration,offset]
 SUB_SEGMENTS = {
-    'Baseline': [-15,0], 
-    'Audio': [0,60],   
-    'Imagery': [60,90],  
-    'Recovery_1': [90,120],
-    'Recovery_2': [120,150],
+    'Baseline': [15,-15], 
+    'Audio': [60,0],   
+    'Imagery': [30,60],  
+    'Recovery_1': [30,90],
+    'Recovery_2': [30,120],
 }
 
 
@@ -18,7 +19,8 @@ def timing_to_dataframe(file_path: str, sheet_to_load:str):
     returns Dataframe
     """
     df = pd.read_excel(file_path, sheet_name=sheet_to_load, index_col=0, na_values=['NA', ''])
-    df = df.rename(columns={'Unnamed: 0': "event"})
+    df.columns = df.columns.astype(str)
+    #df = df.rename(columns={'Unnamed: 0': "event"})
 
 
     return df
@@ -30,6 +32,7 @@ def GSR_to_dataframe(file_path: str, sheet_to_load:str):
     """
 
     df = pd.read_excel(file_path, sheet_name=sheet_to_load, na_values=['NA', ''])
+    df.columns = df.columns.astype(str)
     return df
 
 def get_timing_by_id(df, id:int):
@@ -46,22 +49,34 @@ def avg_by_event_and_id(event:str, id, df_timing, df_data, seconds,offset_sec: i
     second: int, time frame for the average computation
     offset_sec: int, relative starting point
     """
-    time_start = int(df_timing.loc[event, id]) * SAMPLING_RATE #SAMPLING_RATE is a global variable: how many samples per second
-    time_start_sample = time_start + (offset_sec * SAMPLING_RATE)
-    num_of_rows_to_compute = seconds * SAMPLING_RATE
-    time_end_sample = time_start_sample + num_of_rows_to_compute
+    id_str = str(id)
 
-    if time_start_sample < 0 or time_end_sample > len(df_data):
+    try:
+        start_time = df_timing.loc[event, id_str] # Gets the stating time from timing table
+    except KeyError:
+        return None
+
+    #if there is no starting time (missing data)    
+    if pd.isna(start_time):
+        return None 
+        
+    start_time_sample = int(start_time * SAMPLING_RATE) #example - 660=66*10
+    #SAMPLING_RATE is a global variable: how many samples per second
+    start_time_sample = start_time_sample + (offset_sec * SAMPLING_RATE) #example - -15*10 = -150 + 660 = 510 is the start sample
+    num_of_rows_to_compute = seconds * SAMPLING_RATE
+    time_end_sample = start_time_sample + num_of_rows_to_compute
+
+    if start_time_sample < 0 or time_end_sample > len(df_data):
         return None
     
-    sub_rows = df_data[id].iloc[time_start_sample:time_end_sample]
+    sub_rows = df_data[id].iloc[start_time_sample:time_end_sample]
     mean_val = sub_rows.mean() #computes average for second (over $seconds time)
 
     return mean_val
 
 def create_statistic_table(df_timing, df_data):
     
-    subjects = df_timing.columns.astype(str).tolist() 
+    subjects = preprocess(df_timing, df_data)
     
     stats_cols = []
     for cond in CONDITIONS:
@@ -89,6 +104,30 @@ def create_statistic_table(df_timing, df_data):
 
     return df_stats
 
+def preprocess(df_timing,df_data):
+    """
+    takes as an input timing dataframe and data dataframe and returns common subjects id list. 
+    if some is missing it alerts and "ignores" the missing data
+    """
+    timing_subjects = set(df_timing.columns.astype(str).tolist())
+    data_subjects = set(df_data.columns.astype(str).tolist())
+    
+    subjects = list(timing_subjects.intersection(data_subjects))
+    
+    if not subjects:
+        print("no common subjects ids in the data")
+        return pd.DataFrame()
+    return subjects
+
+def dataframe_to_csv(df):
+    output_file_name_csv = 'GSR_Statistics_Table.csv'
+
+    df.to_csv(
+        output_file_name_csv, 
+        index=True,        
+        float_format='%.8f' 
+    )
+
 
 if __name__ == "__main__":
     file_path = "../GSR_RawData.xlsx"
@@ -97,8 +136,11 @@ if __name__ == "__main__":
     timing = timing_to_dataframe(file_path,sheet_time)
     data = GSR_to_dataframe(file_path,sheet_to_load)
 
-    mean = avg_by_event_and_id("neut1",18,timing,data,30)
-    print("{:.10f}".format(mean))
+    #mean = avg_by_event_and_id("neut1",18,timing,data,30)
+    #print("{:.10f}".format(mean))
+
+    stat = create_statistic_table(timing,data)
+    dataframe_to_csv(stat)
 
 
 
