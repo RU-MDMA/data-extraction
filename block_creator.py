@@ -1,4 +1,3 @@
-from typing import List
 import pandas as pd
 import re
 
@@ -133,7 +132,6 @@ def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
 
 def create_block(path):
     big_df = pd.read_csv(path)
-    # big_df.columns = big_df.columns.str.strip()
     real_time_df = extract_all_subjects_realtime_blocks(big_df)
     final_df = drop_empty_D_E(real_time_df)
     returned_path = path.replace(".csv", "_real_time_meta_data.csv")
