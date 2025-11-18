@@ -19,6 +19,7 @@ RECORDING_END_LABEL = 'end of recording'
 RECOVERY_BLOCK_DURATION = 30 
 BASELINE_DURATION = STANDARD_SEGMENTS['Baseline'][0]
 BASELINE_OFFSET = STANDARD_SEGMENTS['Baseline'][1]
+IMAGERY_DURATION = STANDARD_SEGMENTS['Imagery'][0]
 AUDIO_OFFSET = STANDARD_SEGMENTS['Audio'][1]
 
 
@@ -145,22 +146,25 @@ def create_statistic_table(df_timing, df_data):
         baseline_mean = avg_by_event_and_id(condition, subj_id, df_timing, df_data, BASELINE_DURATION, BASELINE_OFFSET)
         df_stats.loc[subj_id, f'{condition}_Baseline_Mean'] = baseline_mean
         
-
+        #audio
         audio_duration_sec = trauma_audio_end_sec - trauma_onset_sec
         audio_mean = avg_by_event_and_id(condition, subj_id, df_timing, df_data, audio_duration_sec, AUDIO_OFFSET)
         df_stats.loc[subj_id, f'{condition}_Audio_Mean'] = audio_mean
 
-
+        #imagery
         imagery_offset_sec = audio_duration_sec
         duration = STANDARD_SEGMENTS["Imagery"][0]
         imagery_mean = avg_by_event_and_id(condition, subj_id, df_timing, df_data, duration, imagery_offset_sec)
         df_stats.loc[subj_id, f'{condition}_Imagery_Mean'] = imagery_mean
-                
-        recovery_start_sec = imagery_offset_sec + duration
+        
+        #recovery
+        recovery_start_offset_sec = imagery_offset_sec + IMAGERY_DURATION 
+        recovery_start_sec = trauma_onset_sec + recovery_start_offset_sec
         total_recovery_duration = recording_end_sec - recovery_start_sec
         
         # how many recovery blocks exist
         num_recovery_blocks = math.floor(total_recovery_duration / RECOVERY_BLOCK_DURATION)
+        print(num_recovery_blocks)
         
         current_offset = recovery_start_sec
         
