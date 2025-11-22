@@ -7,7 +7,7 @@ STANDARD_CONDITIONS = ['neut1', 'stress', 'neut2'] #act the same
 TRAUMA_CONDITION = 'trauma'
 #[duration,offset]
 STANDARD_SEGMENTS = {
-    'Baseline': [15,-15], 
+    'Baseline': [10,-10], 
     'Audio': [60,0],   
     'Imagery': [30,60],  
     'Recovery_1': [30,90],
@@ -73,11 +73,11 @@ def avg_by_event_and_id(event:str, id, df_timing, df_data, seconds,offset_sec: i
     
     #makes sure timing is an int (not "-"..)
     try:
-        start_sample_abs = int(start_time)
+        start_time_float = float(start_time)
     except (ValueError, TypeError): 
         return np.nan
     
-    start_sample_abs = start_time * SAMPLING_RATE
+    start_sample_abs = int(start_time_float * SAMPLING_RATE)
     
     offset_samples = int(offset_sec * SAMPLING_RATE)
         
@@ -196,21 +196,30 @@ def preprocess(df_timing,df_data):
     takes as an input timing dataframe and data dataframe and returns common subjects id list. 
     if some is missing it alerts and "ignores" the missing data
     """
-    timing_subjects = set(df_timing.columns.astype(str).tolist())
-    data_subjects = set(df_data.columns.astype(str).tolist())
+    timing_columns_ordered = df_timing.columns.astype(str).tolist()
+    timing_subjects_set = set(timing_columns_ordered)
+    data_subjects_set = set(df_data.columns.astype(str).tolist())
     
-    subjects = list(timing_subjects.intersection(data_subjects))
+    missing_in_data = timing_subjects_set - data_subjects_set
+    missing_in_timing = data_subjects_set - timing_subjects_set
+    
+    if missing_in_data:
+        print(f"subjects with time table and no data(df_data): {sorted(list(missing_in_data))}")
+    
+    if missing_in_timing:
+        print(f"some subject are missing time table(df_timing): {sorted(list(missing_in_timing))}")
+    
+    subjects = [subj for subj in timing_columns_ordered if subj in data_subjects_set]
     
     if not subjects:
         print("no common subjects ids in the data")
         return pd.DataFrame()
     return subjects
 
-def dataframe_to_csv(df):
-    output_file_name_csv = '/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data/GSR_Statistics_Table.csv'
-
+def dataframe_to_csv(df, file_path, sheet):
+    file_name = file_path + "/" + sheet + "_GSR_Statistics_Table.csv"
     df.to_csv(
-        output_file_name_csv, 
+        file_name, 
         index=True,        
         float_format='%.8f' 
     )
@@ -227,7 +236,8 @@ if __name__ == "__main__":
     #print("{:.10f}".format(mean))
 
     stat = create_statistic_table(timing,data)
-    dataframe_to_csv(stat)
+    result_file_path = '/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data'
+    dataframe_to_csv(stat,result_file_path,sheet_to_load)
 
 
 
