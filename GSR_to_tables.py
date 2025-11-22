@@ -70,10 +70,19 @@ def avg_by_event_and_id(event:str, id, df_timing, df_data, seconds,offset_sec: i
     #if there is no starting time (missing data)    
     if pd.isna(start_time):
         return np.nan 
+    
+    #makes sure timing is an int (not "-"..)
+    try:
+        start_sample_abs = int(start_time)
+    except (ValueError, TypeError): 
+        return np.nan
+    
+    start_sample_abs = start_time * SAMPLING_RATE
+    
+    offset_samples = int(offset_sec * SAMPLING_RATE)
         
-    start_time_sample = int(start_time * SAMPLING_RATE) #example - 660=66*10
     #SAMPLING_RATE is a global variable: how many samples per second
-    start_time_sample = start_time_sample + int(offset_sec * SAMPLING_RATE) #example - -15*10 = -150 + 660 = 510 is the start sample
+    start_time_sample = start_sample_abs + offset_samples #example - -15*10 = -150 + 660 = 510 is the start sample
     num_of_rows_to_compute = int(seconds * SAMPLING_RATE)
     time_end_sample = start_time_sample + num_of_rows_to_compute
 
@@ -159,14 +168,17 @@ def create_statistic_table(df_timing, df_data):
         
         #recovery
         recovery_start_offset_sec = imagery_offset_sec + IMAGERY_DURATION 
-        recovery_start_sec = trauma_onset_sec + recovery_start_offset_sec
-        total_recovery_duration = recording_end_sec - recovery_start_sec
+        recovery_start_abs_sec = trauma_onset_sec + recovery_start_offset_sec
+        total_recovery_duration = recording_end_sec - recovery_start_abs_sec
+
+        if total_recovery_duration <= 0:
+            num_recovery_blocks = 0
+        else:
+            num_recovery_blocks = math.floor(total_recovery_duration / RECOVERY_BLOCK_DURATION)
         
-        # how many recovery blocks exist
-        num_recovery_blocks = math.floor(total_recovery_duration / RECOVERY_BLOCK_DURATION)
-        print(num_recovery_blocks)
-        
-        current_offset = recovery_start_sec
+        current_offset = recovery_start_offset_sec 
+
+        #print(f"Number of recovery blocks calculated, id: {num_recovery_blocks,subj_id,total_recovery_duration}")
         
         for i in range(1, num_recovery_blocks + 1):
             recovery_mean = avg_by_event_and_id(
@@ -195,7 +207,7 @@ def preprocess(df_timing,df_data):
     return subjects
 
 def dataframe_to_csv(df):
-    output_file_name_csv = 'GSR_Statistics_Table.csv'
+    output_file_name_csv = '/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data/GSR_Statistics_Table.csv'
 
     df.to_csv(
         output_file_name_csv, 
@@ -205,7 +217,7 @@ def dataframe_to_csv(df):
 
 
 if __name__ == "__main__":
-    file_path = "../GSR_RawData.xlsx"
+    file_path = "/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data/GSR_RawData.xlsx"
     sheet_to_load = "T1"
     sheet_time = "timing_1"
     timing = timing_to_dataframe(file_path,sheet_time)
