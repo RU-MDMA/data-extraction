@@ -226,7 +226,7 @@ def dataframe_to_csv(df, file_path, sheet):
 
 
 if __name__ == "__main__":
-    file_path = "/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data/GSR_RawData.xlsx"
+    file_path = "/Users/jasmineerell/Documents/Research/data/GSR_RawData.xlsx"
     sheet_to_load = "T1"
     sheet_time = "timing_1"
     timing = timing_to_dataframe(file_path,sheet_time)
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     #print("{:.10f}".format(mean))
 
     stat = create_statistic_table(timing,data)
-    result_file_path = '/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data'
+    result_file_path = '/Users/jasmineerell/Documents/Research/data'
     dataframe_to_csv(stat,result_file_path,sheet_to_load)
 
 
