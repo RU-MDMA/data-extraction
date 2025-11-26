@@ -1,6 +1,5 @@
 import os
 import pandas as pd
-import numpy as np
 
 # Import your existing functions
 from GSR_to_tables import (
@@ -14,25 +13,25 @@ from GSR_to_tables import (
 def extract_samples_for_label(label: str, df_timing, df_data, subjects, sample_step=10):
     """
     Extracts every Nth sample for a given label across all subjects.
-    The timing table contains END times for each label.
+    The timing table contains START times for each label (except neut1).
 
-    - neut1: from 0 to neut1_time
-    - stress: from neut1_time to stress_time
-    - neut2: from stress_time to neut2_time
-    - trauma: from neut2_time to 'end of recording' (or trauma_end if used)
+    - neut1: from neut1_time to stress_time
+    - stress: from stress_time to neut2_time
+    - neut2: from neut2_time to trauma_time
+    - trauma: from trauma_time to 'end of recording' (or trauma_end if used)
     """
     label_data = {}
 
-    # Define the previous label for each condition (to get start time)
-    previous_label = {
-        "neut1": None,  # starts at 0
-        "stress": "neut1",
-        "neut2": "stress",
-        "trauma": "neut2",
+    # Define the next label for each condition (to get end time)
+    next_label = {
+        "neut1": "stress",
+        "stress": "neut2",
+        "neut2": "trauma",
+        "trauma": None,  # ends at 'end of recording'
     }
 
-    prev_label = previous_label.get(label)
-    if prev_label is None and label != "neut1":
+    next_lbl = next_label.get(label)
+    if next_lbl is None and label != "trauma":
         print(f"Unknown label: {label}")
         return label_data
 
@@ -42,27 +41,29 @@ def extract_samples_for_label(label: str, df_timing, df_data, subjects, sample_s
             print(f"Subject {subj_id} not found in data, skipping.")
             continue
 
-        # --- 1. Get END time from timing table ---
+        # --- 1. Get START time from timing table ---
 
         try:
-            end_time = df_timing.loc[label, subj_id]
+            start_time = df_timing.loc[label, subj_id]
         except KeyError:
             print(f"Label '{label}' not found for subject {subj_id}")
             continue
 
-        if pd.isna(end_time):
-            print(f"End time NaN for label '{label}', subject {subj_id}")
+        if pd.isna(start_time):
+            print(f"Start time NaN for label '{label}', subject {subj_id}")
             continue
 
         try:
-            end_time_float = float(end_time)
+            start_time_float = float(start_time)
         except (ValueError, TypeError):
-            print(f"End time non-numeric for label '{label}', subject {subj_id}: {end_time}")
+            print(f"Start time non-numeric for label '{label}', subject {subj_id}: {start_time}")
             continue
 
-        # For trauma, we prefer 'end of recording' (or trauma_end) as the true end
+        # --- 2. Get END time (next label start, or end of recording) ---
+
         if label == "trauma":
-            # Try 'end of recording' first, then 'trauma_end' as fallback
+            # For trauma, use 'end of recording' or 'trauma_end' as the end
+            end_time_float = None
             for row_name in ["end of recording", "trauma_end"]:
                 if row_name in df_timing.index:
                     val = df_timing.loc[row_name, subj_id]
@@ -73,25 +74,25 @@ def extract_samples_for_label(label: str, df_timing, df_data, subjects, sample_s
                         except (ValueError, TypeError):
                             pass
 
-        # --- 2. Get START time (0 or previous label end) ---
-
-        if label == "neut1":
-            start_time_float = 0.0
+            if end_time_float is None:
+                print(f"No valid end time found for trauma, subject {subj_id}")
+                continue
         else:
+            # For other labels, end time is the start of the next label
             try:
-                start_time = df_timing.loc[prev_label, subj_id]
+                end_time = df_timing.loc[next_lbl, subj_id]
             except KeyError:
-                print(f"Previous label '{prev_label}' not found for subject {subj_id}")
+                print(f"Next label '{next_lbl}' not found for subject {subj_id}")
                 continue
 
-            if pd.isna(start_time):
-                print(f"Start time NaN for '{prev_label}', subject {subj_id}")
+            if pd.isna(end_time):
+                print(f"End time NaN for next label '{next_lbl}', subject {subj_id}")
                 continue
 
             try:
-                start_time_float = float(start_time)
+                end_time_float = float(end_time)
             except (ValueError, TypeError):
-                print(f"Start time non-numeric for '{prev_label}', subject {subj_id}: {start_time}")
+                print(f"End time non-numeric for '{next_lbl}', subject {subj_id}: {end_time}")
                 continue
 
         # --- 3. Convert times to sample indices ---
@@ -111,8 +112,7 @@ def extract_samples_for_label(label: str, df_timing, df_data, subjects, sample_s
         col = df_data[subj_id].reset_index(drop=True)
         n_available = len(col)
 
-        # We do NOT want to go past the timing, but we also must
-        # not go beyond the available data.
+        # Check if start is within bounds
         if start_sample >= n_available:
             print(
                 f"Start sample {start_sample} beyond available data ({n_available}) "
@@ -120,7 +120,7 @@ def extract_samples_for_label(label: str, df_timing, df_data, subjects, sample_s
             )
             continue
 
-        # Clamp end_sample to available data, but never extend past timing-derived end_sample
+        # Clamp end_sample to available data
         end_sample_clamped = min(end_sample, n_available)
 
         subject_data = col.iloc[start_sample:end_sample_clamped]
@@ -128,24 +128,28 @@ def extract_samples_for_label(label: str, df_timing, df_data, subjects, sample_s
         # Expected length from timing (in samples)
         expected_len = end_sample - start_sample
 
-        # Optional strict truncation (shouldn't usually be needed,
-        # but it guarantees we never pass the timing end).
+        # Strict truncation to never pass the timing end
         if len(subject_data) > expected_len:
             subject_data = subject_data.iloc[:expected_len]
 
-        # Debug for subject 18 trauma
-        if str(subj_id) == "18" and label == "trauma":
-            print("\n*** DEBUG SUBJECT 18 – TRAUMA ***")
-            print(f"Timing start: {start_time_float} sec")
-            print(f"Timing end:   {end_time_float} sec")
-            print(f"start_sample: {start_sample}")
-            print(f"end_sample:   {end_sample}")
-            print(f"len(col):     {n_available}")
-            print(f"len(subject_data): {len(subject_data)}")
-            print(f"expected_len (samples): {expected_len}")
-            print("*** END DEBUG ***\n")
-
-        # --- 5. Extract every Nth sample ---
+        # Debug for subject 19 stress
+        # if str(subj_id) == "19" and label == "stress":
+        #     print(f"\n*** DEBUG SUBJECT {subj_id} – {label.upper()} ***")
+        #     print(f"Timing start: {start_time_float} sec")
+        #     print(f"Timing end:   {end_time_float} sec")
+        #     print(f"start_sample: {start_sample}")
+        #     print(f"end_sample:   {end_sample}")
+        #     print(f"len(col):     {n_available}")
+        #     print(f"len(subject_data): {len(subject_data)}")
+        #     print(f"expected_len (samples): {expected_len}")
+        #     print(f"\nFirst 5 raw values from col at start_sample:")
+        #     print(col.iloc[start_sample:start_sample + 5].to_list())
+        #     print(f"\nFirst 5 values in subject_data:")
+        #     print(subject_data.iloc[:5].to_list())
+        #     print(f"\nRaw value at sample index {start_sample}: {col.iloc[start_sample]}")
+        #     print(
+        #         f"Value at 256 sec (sample {int(256 * SAMPLING_RATE)}): {col.iloc[int(256 * SAMPLING_RATE)] if int(256 * SAMPLING_RATE) < len(col) else 'OUT OF BOUNDS'}")
+        #     print("*** END DEBUG ***\n")
 
         samples_at_intervals = []
         for i in range(0, len(subject_data), sample_step):
