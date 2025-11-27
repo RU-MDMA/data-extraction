@@ -11,9 +11,10 @@ features = [
     "RMSSD (ms):"
 ]
 
-
-
 def find_feature_row_range(csv_file_path):
+    """
+    finds the index when the wanted feature starts and end, we will crop from it
+    """
     start_row = None
     end_row = None
 
@@ -31,6 +32,10 @@ def find_feature_row_range(csv_file_path):
 
 
 def create_features_dataframe(csv_file_path, start_row, end_row):
+    """
+    create a df for a specific subject. takes its path, start, and end
+    the output is a df size 21x7 for the relevant parameters
+    """
     all_rows = []
     with open(csv_file_path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -67,10 +72,16 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
     return df
 
 def safe_name(feature):
+    """
+    just creates a format that excel accepts (no ":" ect...)
+    """
     # remove special characters and spaces
     return re.sub(r'[^0-9a-zA-Z_]', '_', feature)
 
 def extract_feature_rows(df, features):
+    """
+    insert a df of subject and feature - and get it row
+    """
     feature_rows = {}
 
     for f in features:
@@ -82,14 +93,28 @@ def extract_feature_rows(df, features):
 
 if __name__ == "__main__":
 
-    # ----------- READ SUBJECT FILE & BUILD DF ------------
     csv_file = "/Users/jasmineerell/Documents/Research/data/HR_SDI/Sub023_Session2_audio_ECG_hrv.csv"
     subject_id = "23"
-
     start, end = find_feature_row_range(csv_file)
     df = create_features_dataframe(csv_file, start, end)
     rows = extract_feature_rows(df, features)
-    print(rows["Mean_RR___ms__"])
+
+
+    output_file = f"/Users/jasmineerell/Documents/Research/data/HR_SDI/Sub{subject_id}_HRV_features.xlsx"
+
+    with pd.ExcelWriter(output_file, engine="xlsxwriter") as writer:
+        for feature in features:
+            if feature not in df.index:
+                print(f"Warning: feature '{feature}' not found in DataFrame index")
+                continue
+
+            # 1xN DataFrame: keep as row
+            row_df = df.loc[[feature]]  # using list keeps it as a DataFrame (not Series)
+
+            sheet_name = safe_name(feature)
+            row_df.to_excel(writer, sheet_name=sheet_name, index=True)
+
+    print(f"Excel file written to: {output_file}")
 
 
 
