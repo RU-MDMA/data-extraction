@@ -1,3 +1,4 @@
+import os
 import re
 
 import pandas as pd
@@ -93,26 +94,61 @@ def extract_feature_rows(df, features):
 
 if __name__ == "__main__":
 
-    csv_file = "/Users/jasmineerell/Documents/Research/data/HR_SDI/Sub023_Session2_audio_ECG_hrv.csv"
-    subject_id = "23"
-    start, end = find_feature_row_range(csv_file)
-    df = create_features_dataframe(csv_file, start, end)
-    rows = extract_feature_rows(df, features)
+    dir_path = "/Users/jasmineerell/Documents/Research/data/HR_SDI"
+    output_file = os.path.join(dir_path, "HR_SDI_all_subjects_HRV_features.xlsx")
 
+    # for each feature, we will collect rows from all subjects
+    # dict: original_feature_name -> list of Series (one per subject)
+    all_feature_rows = {f: [] for f in features}
 
-    output_file = f"/Users/jasmineerell/Documents/Research/data/HR_SDI/Sub{subject_id}_HRV_features.xlsx"
+    # scan csv files in dir
+    for fname in os.listdir(dir_path):
+        if not fname.endswith("_SDI.csv"):
+            continue
 
-    with pd.ExcelWriter(output_file, engine="xlsxwriter") as writer:
+        csv_file = os.path.join(dir_path, fname)
+
+        # extract subject number from "number_SDI.csv"
+        m = re.match(r'(\d+)_SDI\.csv$', fname)
+        if not m:
+            print(f"Skipping file (name does not match pattern 'number_SDI.csv'): {fname}")
+            continue
+
+        subj_number = m.group(1)
+        subject_name = f"subject{subj_number}"
+
+        # build df for this subject
+        start, end = find_feature_row_range(csv_file)
+        if start is None or end is None:
+            print(f"Could not find feature rows in file: {fname}")
+            continue
+
+        df = create_features_dataframe(csv_file, start, end)
+        subject_feature_rows = extract_feature_rows(df, features)
+
+        # convert each list to a Series with index = sample columns, name = subject_name
         for feature in features:
-            if feature not in df.index:
-                print(f"Warning: feature '{feature}' not found in DataFrame index")
+            safe_f = safe_name(feature)
+            if safe_f not in subject_feature_rows:
+                print(f"Warning: feature '{feature}' not found for subject {subject_name} in file {fname}")
                 continue
 
-            # 1xN DataFrame: keep as row
-            row_df = df.loc[[feature]]  # using list keeps it as a DataFrame (not Series)
+            values_list = subject_feature_rows[safe_f]
+            row_series = pd.Series(values_list, index=df.columns, name=subject_name)
+            all_feature_rows[feature].append(row_series)
 
+    # write 1 excle file with 7 sheets -
+    with pd.ExcelWriter(output_file, engine="xlsxwriter") as writer:
+        for feature in features:
+            rows_list = all_feature_rows[feature]
+            if not rows_list:
+                print(f"No data collected for feature '{feature}', skipping sheet.")
+                continue
+
+            # stack all subjects for this feature → DataFrame
+            sheet_df = pd.DataFrame(rows_list)  # index = subject_name, columns = SAMPLE 1...N
             sheet_name = safe_name(feature)
-            row_df.to_excel(writer, sheet_name=sheet_name, index=True)
+            sheet_df.to_excel(writer, sheet_name=sheet_name, index=True)
 
     print(f"Excel file written to: {output_file}")
 
