@@ -1,4 +1,17 @@
+import re
+
 import pandas as pd
+features = [
+    "Mean RR  (ms):",
+    "SDNN (ms):",
+    "Mean HR (beats/min):",
+    "SD HR (beats/min):",
+    "Min HR (beats/min):",
+    "Max HR (beats/min):",
+    "RMSSD (ms):"
+]
+
+
 
 def find_feature_row_range(csv_file_path):
     start_row = None
@@ -53,13 +66,18 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
     df.index.name = "Feature"
     return df
 
+def safe_name(feature):
+    # remove special characters and spaces
+    return re.sub(r'[^0-9a-zA-Z_]', '_', feature)
 
-def get_row(df, feature):
-    try:
-        return df.loc[feature].tolist()
-    except KeyError:
-        return None
+def extract_feature_rows(df, features):
+    feature_rows = {}
 
+    for f in features:
+        key = safe_name(f)
+        feature_rows[key] = df.loc[f].tolist()
+
+    return feature_rows
 
 
 if __name__ == "__main__":
@@ -70,6 +88,8 @@ if __name__ == "__main__":
 
     start, end = find_feature_row_range(csv_file)
     df = create_features_dataframe(csv_file, start, end)
-    row = get_row(df, "Mean RR  (ms):")
-    print(row)
+    rows = extract_feature_rows(df, features)
+    print(rows["Mean_RR___ms__"])
+
+
 
