@@ -26,7 +26,7 @@ BASELINE_OFFSET = STANDARD_SEGMENTS['Baseline'][1]
 IMAGERY_DURATION = STANDARD_SEGMENTS['Imagery'][0]
 AUDIO_OFFSET = STANDARD_SEGMENTS['Audio'][1]
 COLORS = {'neut1': 'lightblue', 'stress': 'purple', 'neut2': 'blue', 'trauma': 'red'}
-PLOT_SEGMENT_DURATION_SEC = 210 
+PLOT_SEGMENT_DURATION_SEC = 210 #gives full cover for trauma 
 PLOT_SEGMENT_SAMPLES = int(PLOT_SEGMENT_DURATION_SEC * SAMPLING_RATE)
 OUTPUT_DIR = '/Users/yuvalnadam/Desktop/CS/Cognition/MDMA/2ndYear/data/GSR/Diagnostic_Figures_Output'
 # ----------------------------------------------------------------------
@@ -51,7 +51,6 @@ def prepare_raw_data_for_plot(subj_id, df_timing, df_data):
 
         neut1_onset_sec = df_timing.loc['neut1', id_str]
         plot_start_sec = neut1_onset_sec - STARTING_OFFSET 
-        
         plot_end_sec = df_timing.loc[RECORDING_END_LABEL, id_str]
         
     except Exception as e:
@@ -125,7 +124,7 @@ def get_baseline_mean(event, id_str, df_timing, df_data):
     except (ValueError, TypeError): 
         return np.nan
         
-    onset_sample_abs = int(start_time_float * SAMPLING_RATE) 
+    onset_sample_abs = int(start_time_float * SAMPLING_RATE)
     baseline_start_sample = onset_sample_abs + int(BASELINE_OFFSET * SAMPLING_RATE)
     baseline_end_sample = baseline_start_sample + int(BASELINE_DURATION * SAMPLING_RATE)
 
@@ -141,12 +140,11 @@ def get_baseline_mean(event, id_str, df_timing, df_data):
 
 def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):    
     id_str = str(subj_id)
-    #creating two figures - subplot1,subplot2
 
+    #creating two figures - subplot1,subplot2
     fig, axes = plt.subplots(2, 1, figsize=(15, 8), sharex=False)
     
     # --- Subplot 1: Raw GSR Signal ---
-    
     try:
         neut1_onset_sec = df_timing.loc['neut1', id_str]
         plot_start_sec = neut1_onset_sec - STARTING_OFFSET 
@@ -164,10 +162,15 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
         axes[0].set_title(f'Raw GSR Signal and Events (Subject {id_str})')
         axes[0].set_ylabel('Raw GSR Amplitude')
 
-        # 2. adding markers (Audio ---- , Imagery: - - - )
+        # adding markers (Audio ---- , Imagery: - - - )
         for event in ['neut1', 'stress', 'neut2', 'trauma']:
             try:
-                onset_sec = df_timing.loc[event, id_str]
+                onset_sec = df_timing.loc[event, str(subj_id)]
+            
+                if pd.isna(onset_sec):
+                    print(f"Did not mark {event} is missing in time table")
+                    continue
+                
                 if event == 'trauma':
                     end_audio_sec = df_timing.loc[TRAUMA_AUDIO_END_LABEL, id_str]
                 else:
@@ -179,6 +182,7 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
                 axes[0].axvline(x=onset_relative_time, color=COLORS[event], linestyle='-', linewidth=1.5, label=f'{event} Audio Onset')
                 axes[0].axvline(x=end_audio_relative_time, color=COLORS[event], linestyle='--', linewidth=1.5)
             except Exception:
+                print(f"Did not mark {event} is missing in time table")
                 continue
         axes[0].legend()
         axes[0].grid(axis='y', linestyle='--')
@@ -197,7 +201,7 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
             baseline_mean = get_baseline_mean(event, id_str, df_timing, df_data)
             
             if pd.isna(baseline_mean) or baseline_mean <= 0:
-                print(f"negative or missing baseline {event}")
+                print(f" for {event} baseline value - {baseline_mean} (it must be positive) - skipping the event")
                 continue
 
             # extract the full segment
@@ -207,7 +211,14 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
             segment_start_sample = int(segment_start_sec * SAMPLING_RATE)
             segment_end_sample = segment_start_sample + PLOT_SEGMENT_SAMPLES
             
-            if segment_end_sample > len(df_data) or segment_start_sample < 0: continue
+            if segment_end_sample > len(df_data) or segment_start_sample < 0: 
+                if segment_start_sample < 0:
+                    reason = "segment starts before starting of audio(Index < 0)"
+                else:
+                    reason = "segemnt continue after the recording ended"
+                
+                print(f"'{event}' for {id_str} missing beacuse: {reason}. we are skipping the segment!")
+                continue 
 
             segment_series = df_data[id_str].iloc[segment_start_sample : segment_end_sample]
             normalized_series = segment_series / baseline_mean
@@ -242,7 +253,6 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
     # output dir
     os.makedirs(OUTPUT_DIR, exist_ok=True) 
     
-
     output_filename = os.path.join(OUTPUT_DIR, f'Diagnostic_Figure_Subj_{id_str}_{data_sheet_name}.png')    
     plt.savefig(output_filename)
     print(f"\n (2 Subplots) {output_filename}")
@@ -278,8 +288,6 @@ def process_all_diagnostic_figures(file_path, data_sheet_names):
 
     for sheet_name in data_sheet_names:
         
-        # 1. קביעת שם גיליון הזמנים (בהנחה ש-T1 משתמש ב-timing_1, T2 ב-timing_2 וכו')
-        # sheet_name[-1] מושך את '1' מתוך 'T1'
         timing_sheet_name = f'timing_{sheet_name[-1]}' 
 
         try:
