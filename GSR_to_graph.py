@@ -85,7 +85,10 @@ def plot_raw_data_and_events(gsr_series, subj_id, df_timing, plot_start_sec):
     for event in ['neut1', 'stress', 'neut2', 'trauma']:
         try:
             onset_sec = df_timing.loc[event, str(subj_id)]
-            
+            if pd.isna(onset_sec) or not isinstance(onset_sec, (int, float)):
+                print(f" missing timing for {event} skipping the event")
+                continue 
+
             onset_relative_time = onset_sec - plot_start_sec
             
             # (Imagery Onset)
@@ -95,6 +98,9 @@ def plot_raw_data_and_events(gsr_series, subj_id, df_timing, plot_start_sec):
                 end_audio_sec = onset_sec + STANDARD_SEGMENTS["Audio"][0] 
 
             end_audio_relative_time = end_audio_sec - plot_start_sec
+            if pd.isna(end_audio_sec) or not isinstance(end_audio_sec, (int, float)):
+                print(f" missing timing for {event} skipping the event")
+                continue 
             
             # Audio Onset Marker
             ax.axvline(x=onset_relative_time, color=COLORS[event], linestyle='-', linewidth=1.5, label=f'{event} Audio Onset')
@@ -102,7 +108,8 @@ def plot_raw_data_and_events(gsr_series, subj_id, df_timing, plot_start_sec):
             # Imagery Onset Marker
             ax.axvline(x=end_audio_relative_time, color=COLORS[event], linestyle='--', linewidth=1.5)
             
-        except Exception:
+        except Exception as e:
+            print(f" missing timing for {event} skipping the event")
             continue
     
     ax.legend()
@@ -150,6 +157,9 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
         plot_start_sec = neut1_onset_sec - STARTING_OFFSET 
         plot_end_sec = df_timing.loc[RECORDING_END_LABEL, id_str]
         
+        if pd.isna(neut1_onset_sec) or pd.isna(plot_end_sec):
+            raise ValueError("(NaN).")
+         
         plot_start_sample = int(plot_start_sec * SAMPLING_RATE)
         plot_end_sample = int(plot_end_sec * SAMPLING_RATE)
         
@@ -184,6 +194,7 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
             except Exception:
                 print(f"Did not mark {event} is missing in time table")
                 continue
+
         axes[0].legend()
         axes[0].grid(axis='y', linestyle='--')
         
@@ -232,17 +243,19 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
         time_axis_relative = np.linspace(-STARTING_OFFSET, PLOT_SEGMENT_DURATION_SEC - STARTING_OFFSET, len(series))
         
         axes[1].plot(time_axis_relative, series.values, color=COLORS[event], label=event)
-        
-        # Audio End Marker
-        if event == 'trauma':
-            end_audio_sec = df_timing.loc[TRAUMA_AUDIO_END_LABEL, id_str]
-            audio_duration = end_audio_sec - df_timing.loc[event, id_str]
-        else:
-            audio_duration = STANDARD_SEGMENTS['Audio'][0]
-        
-        axes[1].axvline(x=audio_duration, color=COLORS[event], linestyle='--', alpha=0.7)
+        try:
+            if event == 'trauma':
+                end_audio_sec = df_timing.loc[TRAUMA_AUDIO_END_LABEL, id_str]
+                audio_duration = end_audio_sec - df_timing.loc[event, id_str]
+            else:
+                audio_duration = STANDARD_SEGMENTS['Audio'][0]
 
-    axes[1].set_title('Baseline-Normalised Segments (Aligned to Audio Onset)')
+            axes[1].axvline(x=audio_duration, color=COLORS[event], linestyle='--', alpha=0.7)
+
+        except Exception as e:
+            continue
+
+    axes[1].set_title('Baseline-Normalised Segments ')
     axes[1].set_xlabel('Time Relative to Audio Onset (Seconds)')
     axes[1].set_ylabel('GSR Amplitude (Normalised: 1.0 = Baseline)')
     axes[1].axvline(x=0, color='black', linestyle='-', alpha=0.7)
@@ -255,7 +268,6 @@ def create_diagnostic_figures(subj_id, df_timing, df_data, data_sheet_name):
     
     output_filename = os.path.join(OUTPUT_DIR, f'Diagnostic_Figure_Subj_{id_str}_{data_sheet_name}.png')    
     plt.savefig(output_filename)
-    print(f"\n (2 Subplots) {output_filename}")
     plt.close(fig) 
 
 def preprocess(df_timing,df_data):
@@ -284,7 +296,6 @@ def preprocess(df_timing,df_data):
     return subjects
 
 def process_all_diagnostic_figures(file_path, data_sheet_names):
-
 
     for sheet_name in data_sheet_names:
         
