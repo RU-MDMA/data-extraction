@@ -159,13 +159,13 @@ def build_excel_from_subject_features(dir_path, output_file, features):
 
     # scan CSVs in directory
     for fname in os.listdir(dir_path):
-        if not fname.endswith("_SDI.csv"):
+        if not fname.endswith(".csv"):
             continue
 
         csv_file = os.path.join(dir_path, fname)
 
         # extract subject number from "number_SDI.csv"
-        m = re.match(r'(\d+)_SDI\.csv$', fname)
+        m = re.match(r'.*_(\d+)\.csv$', fname)
         if not m:
             print(f"Skipping file (invalid name): {fname}")
             continue
@@ -211,7 +211,7 @@ def build_excel_from_subject_features(dir_path, output_file, features):
 
 
 if __name__ == "__main__":
-    dir_path = "/Users/jasmineerell/Documents/Research/data/HR_SDI"
+    dir_path = "/Users/jasmineerell/Documents/Research/data/test"
     output_file = os.path.join(dir_path, "HR_SDI_all_subjects_HRV_features.xlsx")
 
     build_excel_from_subject_features(dir_path, output_file, features)
