@@ -1,8 +1,11 @@
 import os
 import re
-
 import pandas as pd
-features = [
+
+features =[
+    "Sample limits (hh:mm:ss):",
+    "Beats corrected (%):",
+    "Effective data length (s):",
     "Mean RR  (ms):",
     "SDNN (ms):",
     "Mean HR (beats/min):",
@@ -31,12 +34,19 @@ def find_feature_row_range(csv_file_path):
 
     return start_row, end_row
 
-
 def create_features_dataframe(csv_file_path, start_row, end_row):
     """
-    create a df for a specific subject. takes its path, start, and end
-    the output is a df size 21x7 for the relevant parameters
+    Create a df for a specific subject.
+
+    - Includes all rows from start_row to end_row (Mean RR ... RMSSD),
+    - PLUS the rows whose first column matches:
+        * "Sample limits (hh:mm:ss):"
+        * "Beats corrected (%):"
+        * "Effective data length (s):"
+      (matched in a case-insensitive way, without relying on fixed line numbers)
+
     """
+    # Read all rows from the CSV
     all_rows = []
     with open(csv_file_path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -44,9 +54,43 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
 
     feature_data = {}
 
-    for row_idx in range(start_row, end_row + 1):
+
+
+    # 1) indices for the standard HRV block (Mean RR ... RMSSD)
+    row_indices = set(range(start_row, end_row + 1))
+
+    # 2) find indices for the extra features by NAME, not line number
+    for idx, row in enumerate(all_rows):
+        if not row or not row[0].strip():
+            continue
+
+        first_col = row[0].strip()
+        lc = first_col.lower()
+
+        # Sample limits
+        if "sample limits" in lc and "hh:mm:ss" in lc:
+            row_indices.add(idx)
+
+        # Beats corrected (%)
+        elif "beats corrected" in lc and "%" in lc:
+            row_indices.add(idx)
+
+        # Effective data length
+        elif "effective data length" in lc:
+            row_indices.add(idx)
+
+    # Sort to keep a stable, readable order
+    row_indices = sorted(row_indices)
+
+
+    for row_idx in row_indices:
         row = all_rows[row_idx]
+        if not row:
+            continue
+
         feature_name = row[0].strip()
+        if not feature_name:
+            continue
 
         values = []
         empty_count = 0
@@ -54,16 +98,29 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
         for cell in row[1:]:
             cell = cell.strip()
 
+            # Handle empty cells and stop after 2 consecutive empties
             if cell == "":
                 empty_count += 1
                 if empty_count >= 2:
                     break
-            else:
-                empty_count = 0
-                try:
-                    values.append(float(cell))
-                except:
-                    values.append(None)
+                continue
+
+            # non-empty cell
+            empty_count = 0
+
+            # Detect interval pattern: e.g. "00:00:37-00:01:07"
+            if "-" in cell and ":" in cell:
+                # keep the interval as a string
+                values.append(cell)
+                continue
+
+            # Try to parse as float
+            try:
+                num = float(cell)
+                values.append(num)
+            except ValueError:
+                # Not numeric and not empty → keep as string
+                values.append(cell)
 
         feature_data[feature_name] = values
 
@@ -72,12 +129,7 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
     df.index.name = "Feature"
     return df
 
-def safe_name(feature):
-    """
-    just creates a format that excel accepts (no ":" ect...)
-    """
-    # remove special characters and spaces
-    return re.sub(r'[^0-9a-zA-Z_]', '_', feature)
+
 
 def extract_feature_rows(df, features):
     """
@@ -91,17 +143,21 @@ def extract_feature_rows(df, features):
 
     return feature_rows
 
+def safe_name(feature):
+    """
+    just creates a format that excel accepts (no ":" ect...)
+    """
+    return re.sub(r'[^0-9a-zA-Z_]', '_', feature)
 
-if __name__ == "__main__":
 
-    dir_path = "/Users/jasmineerell/Documents/Research/data/HR_SDI"
-    output_file = os.path.join(dir_path, "HR_SDI_all_subjects_HRV_features.xlsx")
-
-    # for each feature, we will collect rows from all subjects
-    # dict: original_feature_name -> list of Series (one per subject)
+def build_excel_from_subject_features(dir_path, output_file, features):
+    """
+    Builds an Excel file with one sheet per feature.
+    Each sheet contains one row per subject (values extracted from create_features_dataframe).
+    """
     all_feature_rows = {f: [] for f in features}
 
-    # scan csv files in dir
+    # scan CSVs in directory
     for fname in os.listdir(dir_path):
         if not fname.endswith("_SDI.csv"):
             continue
@@ -111,46 +167,52 @@ if __name__ == "__main__":
         # extract subject number from "number_SDI.csv"
         m = re.match(r'(\d+)_SDI\.csv$', fname)
         if not m:
-            print(f"Skipping file (name does not match pattern 'number_SDI.csv'): {fname}")
+            print(f"Skipping file (invalid name): {fname}")
             continue
 
         subj_number = m.group(1)
         subject_name = f"subject{subj_number}"
 
-        # build df for this subject
+        # find feature block rows
         start, end = find_feature_row_range(csv_file)
         if start is None or end is None:
-            print(f"Could not find feature rows in file: {fname}")
+            print(f"Could not find HRV block in file: {fname}")
             continue
 
+        # build df for this subject
         df = create_features_dataframe(csv_file, start, end)
-        subject_feature_rows = extract_feature_rows(df, features)
 
-        # convert each list to a Series with index = sample columns, name = subject_name
+        # collect each of the expected feature rows
         for feature in features:
-            safe_f = safe_name(feature)
-            if safe_f not in subject_feature_rows:
-                print(f"Warning: feature '{feature}' not found for subject {subject_name} in file {fname}")
+            if feature not in df.index:
+                print(f"Warning: feature '{feature}' missing in {fname}")
                 continue
 
-            values_list = subject_feature_rows[safe_f]
-            row_series = pd.Series(values_list, index=df.columns, name=subject_name)
-            all_feature_rows[feature].append(row_series)
+            row_values = df.loc[feature]
+            row_values.name = subject_name  # store subject name as index
+            all_feature_rows[feature].append(row_values)
 
-    # write 1 excle file with 7 sheets -
+    # write Excel - one sheet per feature
     with pd.ExcelWriter(output_file, engine="xlsxwriter") as writer:
         for feature in features:
-            rows_list = all_feature_rows[feature]
-            if not rows_list:
-                print(f"No data collected for feature '{feature}', skipping sheet.")
+            rows = all_feature_rows[feature]
+            if not rows:
+                print(f"No data for feature '{feature}', skipping sheet.")
                 continue
 
-            # stack all subjects for this feature → DataFrame
-            sheet_df = pd.DataFrame(rows_list)  # index = subject_name, columns = SAMPLE 1...N
+            sheet_df = pd.DataFrame(rows)
+            sheet_df.index.name = "Subject"
+
             sheet_name = safe_name(feature)
-            sheet_df.to_excel(writer, sheet_name=sheet_name, index=True)
+            sheet_df.to_excel(writer, sheet_name=sheet_name)
 
-    print(f"Excel file written to: {output_file}")
+    print(f"Excel file created successfully: {output_file}")
 
 
+
+if __name__ == "__main__":
+    dir_path = "/Users/jasmineerell/Documents/Research/data/HR_SDI"
+    output_file = os.path.join(dir_path, "HR_SDI_all_subjects_HRV_features.xlsx")
+
+    build_excel_from_subject_features(dir_path, output_file, features)
 
