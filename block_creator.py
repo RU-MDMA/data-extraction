@@ -133,6 +133,10 @@ def drop_empty_D_E(df: pd.DataFrame) -> pd.DataFrame:
 def create_block(path):
     big_df = pd.read_csv(path)
     real_time_df = extract_all_subjects_realtime_blocks(big_df)
+
+    #skip every second row to avoid overlap and reset the index row count --> can remove this line to go back to overlap
+    real_time_df = real_time_df.iloc[::2].reset_index(drop=True)
+
     final_df = drop_empty_D_E(real_time_df)
     returned_path = path.replace(".csv", "_real_time_meta_data.csv")
     return returned_path, final_df.to_csv(returned_path, index=False)
