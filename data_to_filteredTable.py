@@ -29,10 +29,16 @@ ALLOWED_FEATURES = [
 def process_file_final(file_path):
     parts = Path(file_path).parts
     subject, meet, state = parts[-4], parts[-3], parts[-2]
+    filename = parts[-1]
     
-    # combining all therapy
     if "therapy" in state.lower():
-        state = "therapy"
+        #fine name must be in the form of "...ECG_" followed by a letter 
+        match = re.search(r'ECG_([A-Za-z])', filename)
+        if match:
+            letter = match.group(1).lower()
+            state = f"therapy_{letter}"
+        else:
+            state = "therapy" # default
 
     extracted_data = []
     with open(file_path, newline='', encoding="utf-8") as f:
@@ -77,6 +83,7 @@ def generate_clean_metadata(root_folder, output_csv):
     
     for root, _, files in os.walk(root_folder):
         for file in files:
+            #dont process meta data files
             if file.endswith(".csv") and "meta_data" not in file:
                 all_rows.extend(process_file_final(os.path.join(root, file)))
     
