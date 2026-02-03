@@ -158,10 +158,10 @@ def generate_graphs(excel_path, parameter, subject_id, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     plot_subject_meetings(df, subject_id, parameter, output_dir)
 
-def generate_graphs_for_all_subjects(excel_path, parameter, output_dir="."):
+def generate_graphs_for_all_subjects(block_path, parameter, output_dir):
 
-    print(f"Loading data from: {excel_path}")
-    df = load_clean_data(excel_path, parameter)
+    print(f"Loading data from: {block_path}")
+    df = load_clean_data(block_path, parameter)
 
     subject_ids = df['sub'].dropna().astype(int).unique()
     os.makedirs(output_dir, exist_ok=True)
