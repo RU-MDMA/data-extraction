@@ -74,5 +74,3 @@ class AllPipeline:
         return self.createGraphs(feature, block_path)
 
 
-all_pipe = AllPipeline("/Users/jasmineerell/Documents/CS-second-year/MDMA/data")
-all_pipe.run("RMSSD")

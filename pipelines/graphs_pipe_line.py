@@ -1,13 +1,35 @@
+import os
 import block_to_graph
-import block_creator
 
 
 class GraphsPipeline:
-    def __init__(self, block_path, parameter):
+    def __init__(self, block_path, feature):
         self.block_path = block_path
-        self.parameter = parameter
+        self.feature = feature
 
+    def doesTheFileExist(self, file_path):
+        return os.path.isfile(file_path)
 
-if __name__ == "__main__":
-    pipeline = GraphsPipeline(root_dir = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/block.csv", parameter= "Mean HR")
-    block_to_graph.generate_graphs_for_all_subjects(pipeline.block_path, pipeline.parameter, output_dir="..")
+    def run(self):
+        print("Running graphs-only pipeline...")
+
+        if not self.block_path or not self.doesTheFileExist(self.block_path):
+            print("Block file does not exist")
+            return None
+
+        safe_feature = self.feature.replace(" ", "_").replace("/", "_")
+        output_dir = os.path.dirname(self.block_path)
+        graphs_dir = os.path.join(output_dir, f"{safe_feature}_graphs")
+
+        block_to_graph.generate_graphs_for_all_subjects(
+            self.block_path,
+            self.feature,
+            graphs_dir
+        )
+
+        if os.path.isdir(graphs_dir) and any(f.endswith(".png") for f in os.listdir(graphs_dir)):
+            print("Graphs saved to:", graphs_dir)
+            return graphs_dir
+
+        print("Graphs failed")
+        return None
