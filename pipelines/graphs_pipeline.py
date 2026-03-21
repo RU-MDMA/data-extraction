@@ -5,25 +5,24 @@ import block_to_graph
 class GraphsPipeline:
     def __init__(self, block_path, feature):
         self.block_path = block_path
-        self.feature = feature
 
     def doesTheFileExist(self, file_path):
         return os.path.isfile(file_path)
 
-    def run(self):
+    def run(self,feature):
         print("Running graphs-only pipeline...")
 
         if not self.block_path or not self.doesTheFileExist(self.block_path):
             print("Block file does not exist")
             return None
 
-        safe_feature = self.feature.replace(" ", "_").replace("/", "_")
+        safe_feature = feature.replace(" ", "_").replace("/", "_")
         output_dir = os.path.dirname(self.block_path)
         graphs_dir = os.path.join(output_dir, f"{safe_feature}_graphs")
 
         block_to_graph.generate_graphs_for_all_subjects(
             self.block_path,
-            self.feature,
+            feature,
             graphs_dir
         )
 
