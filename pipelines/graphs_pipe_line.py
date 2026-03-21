@@ -2,13 +2,12 @@ import block_to_graph
 import block_creator
 
 
-class HRPipeline:
-    def __init__(self, root_dir, parameter):
-        self.root = root_dir
+class GraphsPipeline:
+    def __init__(self, block_path, parameter):
+        self.block_path = block_path
         self.parameter = parameter
 
 
 if __name__ == "__main__":
-    pipeline = HRPipeline(root_dir = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data1/meta_data.csv", parameter= "Mean HR")
-    block, temp = block_creator.create_block(pipeline.root)
-    block_to_graph.generate_graphs_for_all_subjects(block, pipeline.parameter, output_dir="..")
+    pipeline = GraphsPipeline(root_dir = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/block.csv", parameter= "Mean HR")
+    block_to_graph.generate_graphs_for_all_subjects(pipeline.block_path, pipeline.parameter, output_dir="..")
