@@ -10,6 +10,7 @@ class allPipeLine:
         self.out_path = data_path
 
     def createMetaData(self):
+        print("Creating meta data")
         metaDataCsvCreator(self.data_path)
 
         meta_data_path = os.path.join(self.data_path, "meta_data.csv")
@@ -25,6 +26,7 @@ class allPipeLine:
         return os.path.isfile(file_path)
 
     def createBlock(self, meta_data_path):
+        print("Creating block")
         if not meta_data_path or not self.doesTheFileExcist(meta_data_path):
             print("No meta data file to create block from")
             return None
@@ -39,6 +41,8 @@ class allPipeLine:
             return None
 
     def createGraphs(self,feature,block_path):
+        print("Creating graphs")
+
         if not block_path or not self.doesTheFileExcist(block_path):
             print("No block to create graphs from")
             return None
@@ -95,7 +99,8 @@ class allPipeLine:
             print("Invalid feature name")
             return None
 
-        graphs_dir = os.path.join(self.data_path, "graphs")
+        safe_feature = feature.replace(" ", "_").replace("/", "_")
+        graphs_dir = os.path.join(self.data_path, f"{safe_feature}_graphs")
         generate_graphs_for_all_subjects(block_path, feature, graphs_dir)
         if os.path.isdir(graphs_dir) and any(f.endswith(".png") for f in os.listdir(graphs_dir)):
             print("Graphs saved to:", graphs_dir)
@@ -108,8 +113,8 @@ class allPipeLine:
 if __name__ == "__main__":
     dataPath = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data"
     pipeLine = allPipeLine(dataPath)
-
-    #meta_data_path = pipeLine.createMetaData()
-    #block_path = pipeLine.createBlock(meta_data_path)
+    # meta_data_path = pipeLine.createMetaData()
+    # block_path = pipeLine.createBlock(meta_data_path)
     block_path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data/block.csv"
     graphs_path = pipeLine.createGraphs("RMSSD", block_path)
+    #add global table
