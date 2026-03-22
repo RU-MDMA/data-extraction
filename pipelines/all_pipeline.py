@@ -2,6 +2,7 @@ import os
 from Meta_data_creator import metaDataCsvCreator
 from block_creator import create_block
 from block_to_graph import generate_graphs_for_all_subjects
+from data_to_globalTable import generate_global_metadata
 
 
 class AllPipeline:
@@ -62,6 +63,21 @@ class AllPipeline:
         print("Graphs failed")
         return None
 
+    def createGlobal(self):
+        print("Creating global data table...")
+        
+        output_path = os.path.join(self.data_path, "ans_global_metadata.csv")
+
+        generate_global_metadata(self.data_path, output_path)
+        
+        if self.doesTheFileExist(output_path):
+            print(f"Global table saved to: {output_path}")
+            return output_path
+        
+        print("Global table failed")
+        return None
+
+
     def run(self, feature):
         meta_path = self.createMetaData()
         if not meta_path:
@@ -69,6 +85,10 @@ class AllPipeline:
 
         block_path = self.createBlock(meta_path)
         if not block_path:
+            return None
+
+        global_path = self.createGlobal()
+        if not global_path:
             return None
 
         return self.createGraphs(feature, block_path)

@@ -58,9 +58,7 @@ def process_file_global_only(file_path):
     return extracted_rows
 
 def generate_global_metadata(root_folder, output_csv):
-    all_data = []
-    print(f"Starting to process global data from: {root_folder}")
-    
+    all_data = []    
     for root, _, files in os.walk(root_folder):
         for file in files:
             if file.endswith(".csv") and "meta_data" not in file.lower():
@@ -78,11 +76,3 @@ def generate_global_metadata(root_folder, output_csv):
     
     df.to_csv(output_csv, index=False, encoding='utf-8-sig')
     
-    print(f"\n--- Process Complete ---")
-    print(f"File saved as: {output_csv}")
-    print(f"Total rows: {len(df)}")
-    print(f"Subjects included: {df['subject'].nunique()}")
-
-root_dir = "/Users/yuvalnadam/Desktop/CS/Cognition/data"
-output_file = "/Users/yuvalnadam/Desktop/CS/Cognition/data/ans_global_metadata.csv"
-generate_global_metadata(root_dir, output_file)
