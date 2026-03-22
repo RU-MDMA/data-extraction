@@ -36,7 +36,7 @@ class AllPipeline:
             return None
 
         create_block(meta_path)
-        block_path = os.path.join(self.data_path, "ans_global_metadata.csv")
+        block_path = os.path.join(self.data_path, "ans_segments_metadata.csv")
 
         return block_path if self.doesTheFileExist(block_path) else None
 
