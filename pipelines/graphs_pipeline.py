@@ -13,7 +13,7 @@ class GraphsPipeline:
         print("Running graphs-only pipeline...")
 
         if not self.block_path or not self.doesTheFileExist(self.block_path):
-            print("Block file does not exist")
+            print("Segments data file does not exist")
             return None
 
         safe_feature = feature.replace(" ", "_").replace("/", "_")

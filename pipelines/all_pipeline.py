@@ -29,14 +29,14 @@ class AllPipeline:
         return meta_path if self.doesTheFileExist(meta_path) else None
 
     def createBlock(self, meta_path):
-        print("Creating block...")
+        print("Creating segments data table...")
 
         if not meta_path or not self.doesTheFileExist(meta_path):
             print("Meta data missing")
             return None
 
         create_block(meta_path)
-        block_path = os.path.join(self.data_path, "block.csv")
+        block_path = os.path.join(self.data_path, "ans_global_metadata.csv")
 
         return block_path if self.doesTheFileExist(block_path) else None
 

@@ -10,7 +10,7 @@ def main():
         pipeline = AllPipeline(data_path)
 
     elif choice == "graphs":
-        block_path = input("Enter block.csv path: ").strip()
+        block_path = input("Enter segments data (csv file) path: ").strip()
         pipeline = GraphsPipeline(block_path, feature)
 
     else:
