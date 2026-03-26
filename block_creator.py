@@ -138,7 +138,7 @@ def create_block(path):
     real_time_df = real_time_df.iloc[::2].reset_index(drop=True)
 
     final_df = drop_empty_D_E(real_time_df)
-    returned_path = path.replace("meta_data.csv", "block.csv")
+    returned_path = path.replace("meta_data.csv", "ans_segments_metadata.csv")
     return returned_path, final_df.to_csv(returned_path, index=False)
 
 
