@@ -47,24 +47,50 @@ def preprocess(file_path: str, type_value: str = "") -> pd.DataFrame:
     return df
 
 
-def iterate_over_drive(root: str,existing_subjects:set ) -> pd.DataFrame:
+def iterate_over_drive(root: str) -> pd.DataFrame:
     """
     Recursively finds all .csv files under the root, processes them using preprocess(),
     and returns a single concatenated DataFrame.
     """
-    meet_dir_re = re.compile(r'^\s*meet\s+\d+a?\s*$', re.IGNORECASE)
+    meet_dir_re = re.compile(r'^meet\s*\d+a?$', re.IGNORECASE)
+    valid_states = {"baseline", "therapy", "recovery"}
 
     dfs = []
     for dirpath, dirnames, filenames in os.walk(root):
-        current_dirname = os.path.basename(dirpath)
-        if current_dirname in existing_subjects:
-            print(f"[SKIP] Subject '{current_dirname}' already in meta_data. Skipping.")
-            dirnames[:] = []
+        dirname = os.path.basename(dirpath).strip()
+
+        if dirname.lower().startswith('meet') and not meet_dir_re.match(dirname):
+            print(f"[INFO] Skipping directory '{dirpath}': invalid 'meet' format")
             continue
 
-        # if dirnames.lower().startswith('meet') and not meet_dir_re.match(dirnames):
-        #     print(f"[INFO] Skipping directory '{dirpath}': invalid 'meet' format")
-        #     continue
+        # Debug check: meet folder exists but does not contain baseline/therapy/recovery folders
+        if meet_dir_re.match(dirname):
+            has_valid_state_folder = any(d.lower().strip() in valid_states for d in dirnames)
+
+            if not has_valid_state_folder:
+                parts = os.path.normpath(dirpath).split(os.sep)
+                subject = parts[-2] if len(parts) >= 2 else "unknown"
+
+                print(f"\nFailed to create meta data.")
+                print(f"Subject '{subject}' has wrong hierarchy of folders.\n")
+
+                print("Example of correct hierarchy:")
+                print("""
+root/
+ └── subject16/
+      └── meet10/
+           ├── baseline/
+           │    └── file1.csv
+           ├── therapy/
+           │    └── file2.csv
+           └── recovery/
+                └── file3.csv
+""")
+
+                print("Problematic folder:")
+                print(dirpath)
+
+                raise RuntimeError("Invalid folder hierarchy detected")
 
         for fname in filenames:
             if fname.lower().endswith(".csv") and "meta_data" not in fname.lower():
@@ -84,6 +110,7 @@ def iterate_over_drive(root: str,existing_subjects:set ) -> pd.DataFrame:
                     print(f"Failed to process {file_path}: {e}")
 
     if not dfs:
+        print(f"No CSV files found under {root}")
         return None
 
     combined_df = pd.concat(dfs, ignore_index=True)
@@ -95,26 +122,19 @@ def extract_type_from_filename(filename):
     return match.group(1).upper() if match else ""
 
 
-
 def metaDataCsvCreator(root_path: str):
     """
     Creates a combined metadata CSV file from all CSVs in the root_path directory.
     """
-
-    out_path = os.path.join(root_path, "meta_data.csv")
-    existing_subjects = set()
-    if os.path.exists(out_path):
-        existing_df = pd.read_csv(out_path, usecols=['subject'])
-        for sub in existing_df['subject'].unique():
-            existing_subjects.add(sub)
-
-
-    combined_df = iterate_over_drive(root_path,existing_subjects )
+    combined_df = iterate_over_drive(root_path)
     if combined_df is not None:
-        file_exists = os.path.isfile(out_path)
-        combined_df.to_csv(out_path, mode='a', index=False, header=not file_exists)
-        print(f"Successfully added new data to {out_path}")
+        out_path = os.path.join(root_path, "meta_data.csv")
+        combined_df.to_csv(out_path, index=False)
         return out_path
     else:
-        print("No new data to add.")
         return None
+
+
+if __name__ == "__main__":
+    data_path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data-2026"
+    metaDataCsvCreator(data_path)
