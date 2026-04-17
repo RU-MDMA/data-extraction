@@ -65,10 +65,11 @@ class AllPipeline:
 
     def createGlobal(self):
         print("Creating global data table...")
-        
+    
+        meta_data_csv = os.path.join(self.data_path, "meta_data.csv")  # add this
         output_path = os.path.join(self.data_path, "ans_global_metadata.csv")
 
-        generate_global_metadata(self.data_path, output_path)
+        generate_global_metadata(meta_data_csv, output_path)  # pass file, not folder
         
         if self.doesTheFileExist(output_path):
             print(f"Global table saved to: {output_path}")

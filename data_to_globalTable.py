@@ -1,10 +1,6 @@
-import os
 import pandas as pd
-import csv
 import re
-from pathlib import Path
 
-#list of features
 ALLOWED_FEATURES = [
     "  Beats corrected (%):        ", "  Time length (sec):          ",
     "  Mean RR  (ms):              ", "  SDNN (ms):                  ",
@@ -26,53 +22,37 @@ ALLOWED_FEATURES = [
     " LF/HF ratio:                 ", " RESP (Hz):                   "
 ]
 
-def process_file_global_only(file_path):
-    parts = Path(file_path).parts
-    subject, meet, state = parts[-4], parts[-3], parts[-2]
-    filename = parts[-1]
-    
-    # therapy A B C D 
-    if "therapy" in state.lower():
-        match = re.search(r'ECG_([A-Z])', filename)
-        state = f"therapy_{match.group(1).lower()}" if match else "therapy"
+def generate_global_metadata(meta_data_csv, output_csv):
+    df = pd.read_csv(meta_data_csv, dtype=str).fillna("")
 
-    extracted_rows = []
-    try:
-        with open(file_path, newline='', encoding="utf-8") as f:
-            reader = csv.reader(f)
-            for row in reader:
-                if len(row) < 2: continue
-                feat_name = row[0]
-                if feat_name in ALLOWED_FEATURES:
-                    extracted_rows.append({
-                        "subject": subject,
-                        "meet": meet,
-                        "state": state,
-                        "type": "global",
-                        "col1": feat_name,
-                        "col2": row[1]
-                    })
-    except Exception as e:
-        print(f"Error reading {filename}: {e}")
-        
-    return extracted_rows
+    # Filter only rows where col1 is a feature we care about
+    df_filtered = df[df["col1"].isin(ALLOWED_FEATURES)].copy()
 
-def generate_global_metadata(root_folder, output_csv):
-    all_data = []    
-    for root, _, files in os.walk(root_folder):
-        for file in files:
-            if file.endswith(".csv") and "meta_data" not in file.lower():
-                all_data.extend(process_file_global_only(os.path.join(root, file)))
-    
-    if not all_data:
-        print("No data found!")
+    if df_filtered.empty:
+        print("No matching features found in meta_data.csv")
         return
 
-    df = pd.DataFrame(all_data)
-    
-    df = df.drop_duplicates()
-    
-    df = df.sort_values(by=['subject', 'meet', 'state'])
-    
-    df.to_csv(output_csv, index=False, encoding='utf-8-sig')
-    
+    # Keep only the relevant columns
+    df_filtered = df_filtered[["subject", "meet", "state", "type", "col1", "col2"]]
+
+    # Encode therapy type into state (therapy_a, therapy_b...) to match original behavior
+    def encode_state(row):
+        if row["state"].lower() == "therapy" and row["type"]:
+            return f"therapy_{row['type'].lower()}"
+        return row["state"].lower()
+
+    df_filtered["state"] = df_filtered.apply(encode_state, axis=1)
+    df_filtered = df_filtered.drop(columns=["type"])
+    df_filtered["type"] = "global"
+
+    df_filtered = df_filtered.drop_duplicates()
+    df_filtered = df_filtered.sort_values(by=["subject", "meet", "state"])
+
+    df_filtered.to_csv(output_csv, index=False, encoding="utf-8-sig")
+    print(f"Saved to {output_csv}")
+
+
+if __name__ == "__main__":
+    meta_data_csv = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data-2026/meta_data.csv"
+    output_csv = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data-2026/global_metadata.csv"
+    generate_global_metadata(meta_data_csv, output_csv)

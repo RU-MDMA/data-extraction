@@ -6,11 +6,40 @@ import re
 "Takes a directory with patients data, and creates in the same directory a meta_data.csv file"
 
 
-def preprocess(file_path: str, type_value: str = "") -> pd.DataFrame:
+def extract_metadata_from_filename(filename: str) -> dict:
     """
-    Reads a CSV file, replaces empty cells with 'NA', and adds 'subject', 'meet', and 'state' columns
-    based on the file path. Pads short rows and returns a cleaned DataFrame.
-    The 'subject', 'meet', and 'state' columns are moved to the front of the DataFrame.
+    Extracts subject, meet, state, and type from a filename.
+    Expected formats:
+      Sub15_Meet05_baseline_ECG_fixed_clean.csv
+      Sub15_Meet05_therapy_ECG_A_clean.csv
+      Sub15_Meet05_recovery_ECG_fixed_clean.csv
+    Returns a dict with keys: subject, meet, state, type
+    """
+    base = os.path.splitext(filename)[0]  # strip .csv
+
+    # Extract subject
+    subject_match = re.search(r'(Sub\d+)', base, re.IGNORECASE)
+    subject = subject_match.group(1) if subject_match else "unknown"
+
+    # Extract meet
+    meet_match = re.search(r'(Meet\d+a?)', base, re.IGNORECASE)
+    meet = meet_match.group(1) if meet_match else "unknown"
+
+    # Extract state (baseline / therapy / recovery)
+    state_match = re.search(r'(baseline|therapy|recovery)', base, re.IGNORECASE)
+    state = state_match.group(1).lower() if state_match else "unknown"
+
+    # Extract type — only relevant for therapy files (ECG_A / B / C / D)
+    type_value = extract_type_from_filename(filename) if state == "therapy" else ""
+
+    return {"subject": subject, "meet": meet, "state": state, "type": type_value}
+
+
+def preprocess(file_path: str) -> pd.DataFrame:
+    """
+    Reads a CSV file, replaces empty cells with 'NA', and adds 'subject', 'meet', 'state',
+    and 'type' columns parsed from the filename. Pads short rows and returns a cleaned DataFrame.
+    The metadata columns are moved to the front of the DataFrame.
     """
     with open(file_path, newline='', encoding="utf-8") as f:
         reader = csv.reader(f)
@@ -28,19 +57,16 @@ def preprocess(file_path: str, type_value: str = "") -> pd.DataFrame:
     col_names = [f"col{i + 1}" for i in range(max_cols)]
     df = pd.DataFrame(padded, columns=col_names)
 
-    # Add metadata from the file path
-    parts = os.path.normpath(file_path).split(os.sep)
-    if len(parts) >= 4:
-        subject, meet, state = parts[-4], parts[-3], parts[-2]
-    else:
-        subject = meet = state = "unknown"
+    # Parse metadata from filename instead of directory structure
+    fname = os.path.basename(file_path)
+    meta = extract_metadata_from_filename(fname)
 
-    df["subject"] = subject
-    df["meet"] = meet
-    df["state"] = state
-    df["type"] = type_value  # Add the passed-in type
+    df["subject"] = meta["subject"]
+    df["meet"] = meta["meet"]
+    df["state"] = meta["state"]
+    df["type"] = meta["type"]
 
-    # Move 'subject', 'meet', and 'state' to the front
+    # Move metadata columns to the front
     cols = ['subject', 'meet', 'state', 'type'] + [col for col in df.columns if col not in ['subject', 'meet', 'state', 'type']]
     df = df[cols]
 
@@ -51,60 +77,30 @@ def iterate_over_drive(root: str) -> pd.DataFrame:
     """
     Recursively finds all .csv files under the root, processes them using preprocess(),
     and returns a single concatenated DataFrame.
+    Expected hierarchy: root/ -> subject/ -> meet/ -> *.csv
     """
     meet_dir_re = re.compile(r'^meet\s*\d+a?$', re.IGNORECASE)
-    valid_states = {"baseline", "therapy", "recovery"}
 
     dfs = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirname = os.path.basename(dirpath).strip()
 
+        # Skip directories that look like they should be meet folders but have invalid names
         if dirname.lower().startswith('meet') and not meet_dir_re.match(dirname):
             print(f"[INFO] Skipping directory '{dirpath}': invalid 'meet' format")
             continue
-
-        # Debug check: meet folder exists but does not contain baseline/therapy/recovery folders
-        if meet_dir_re.match(dirname):
-            has_valid_state_folder = any(d.lower().strip() in valid_states for d in dirnames)
-
-            if not has_valid_state_folder:
-                parts = os.path.normpath(dirpath).split(os.sep)
-                subject = parts[-2] if len(parts) >= 2 else "unknown"
-
-                print(f"\nFailed to create meta data.")
-                print(f"Subject '{subject}' has wrong hierarchy of folders.\n")
-
-                print("Example of correct hierarchy:")
-                print("""
-root/
- └── subject16/
-      └── meet10/
-           ├── baseline/
-           │    └── file1.csv
-           ├── therapy/
-           │    └── file2.csv
-           └── recovery/
-                └── file3.csv
-""")
-
-                print("Problematic folder:")
-                print(dirpath)
-
-                raise RuntimeError("Invalid folder hierarchy detected")
 
         for fname in filenames:
             if fname.lower().endswith(".csv") and "meta_data" not in fname.lower():
                 file_path = os.path.join(dirpath, fname)
 
-                # Determine 'state' from folder structure
-                parts = os.path.normpath(file_path).split(os.sep)
-                state = parts[-2] if len(parts) >= 2 else "unknown"
-
-                # Extract type if state is therapy
-                type_value = extract_type_from_filename(fname) if state.lower() == "therapy" else ""
+                # Warn if filename doesn't contain expected state keyword
+                if not re.search(r'(baseline|therapy|recovery)', fname, re.IGNORECASE):
+                    print(f"[WARNING] Could not detect state in filename: '{fname}' — skipping")
+                    continue
 
                 try:
-                    df = preprocess(file_path, type_value=type_value)
+                    df = preprocess(file_path)
                     dfs.append(df)
                 except Exception as e:
                     print(f"Failed to process {file_path}: {e}")
