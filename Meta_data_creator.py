@@ -19,7 +19,7 @@ def extract_metadata_from_filename(filename: str) -> dict:
 
     # Extract subject
     subject_match = re.search(r'(Sub\d+)', base, re.IGNORECASE)
-    subject = subject_match.group(1) if subject_match else "unknown"
+    subject = subject_match.group(1).capitalize() if subject_match else "unknown"
 
     # Extract meet
     meet_match = re.search(r'(Meet\d+a?)', base, re.IGNORECASE)
@@ -132,5 +132,5 @@ def metaDataCsvCreator(root_path: str):
 
 
 if __name__ == "__main__":
-    data_path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data-2026"
+    data_path = "/Users/jasmineerell/Documents/CS-second-year/MDMA/data"
     metaDataCsvCreator(data_path)
