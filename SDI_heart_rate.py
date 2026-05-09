@@ -2,7 +2,7 @@ import os
 import re
 import pandas as pd
 
-features =[
+features = [
     "Sample limits (hh:mm:ss):",
     "Beats corrected (%):",
     "Effective data length (s):",
@@ -12,8 +12,10 @@ features =[
     "SD HR (beats/min):",
     "Min HR (beats/min):",
     "Max HR (beats/min):",
-    "RMSSD (ms):"
+    "RMSSD (ms):",
+    "HF (log):"  # Added new feature
 ]
+
 
 def find_feature_row_range(csv_file_path):
     """
@@ -34,17 +36,14 @@ def find_feature_row_range(csv_file_path):
 
     return start_row, end_row
 
+
 def create_features_dataframe(csv_file_path, start_row, end_row):
     """
     Create a df for a specific subject.
 
     - Includes all rows from start_row to end_row (Mean RR ... RMSSD),
-    - PLUS the rows whose first column matches:
-        * "Sample limits (hh:mm:ss):"
-        * "Beats corrected (%):"
-        * "Effective data length (s):"
-      (matched in a case-insensitive way, without relying on fixed line numbers)
-
+    - PLUS the rows whose first column matches specific text
+    - PLUS explicitly grabs row 102 (index 101) for HF (log)
     """
     # Read all rows from the CSV
     all_rows = []
@@ -53,8 +52,6 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
             all_rows.append(line.strip().split(','))
 
     feature_data = {}
-
-
 
     # 1) indices for the standard HRV block (Mean RR ... RMSSD)
     row_indices = set(range(start_row, end_row + 1))
@@ -79,16 +76,24 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
         elif "effective data length" in lc:
             row_indices.add(idx)
 
+    # 3) Force add row 102 (which is index 101 in Python) for HF (log)
+    if len(all_rows) > 101:
+        row_indices.add(101)
+
     # Sort to keep a stable, readable order
     row_indices = sorted(row_indices)
-
 
     for row_idx in row_indices:
         row = all_rows[row_idx]
         if not row:
             continue
 
-        feature_name = row[0].strip()
+        # Force the exact name for row 102 so it perfectly matches the features list
+        if row_idx == 101:
+            feature_name = "HF (log):"
+        else:
+            feature_name = row[0].strip()
+
         if not feature_name:
             continue
 
@@ -124,11 +129,12 @@ def create_features_dataframe(csv_file_path, start_row, end_row):
 
         feature_data[feature_name] = values
 
-    df = pd.DataFrame(feature_data).T
+    # FIXED: Use from_dict with orient='index' to handle rows with different lengths safely
+    df = pd.DataFrame.from_dict(feature_data, orient='index')
+
     df.columns = [f"SAMPLE {i + 1}" for i in range(len(df.columns))]
     df.index.name = "Feature"
     return df
-
 
 
 def extract_feature_rows(df, features):
@@ -142,6 +148,7 @@ def extract_feature_rows(df, features):
         feature_rows[key] = df.loc[f].tolist()
 
     return feature_rows
+
 
 def safe_name(feature):
     """
@@ -209,10 +216,8 @@ def build_excel_from_subject_features(dir_path, output_file, features):
     print(f"Excel file created successfully: {output_file}")
 
 
-
 if __name__ == "__main__":
-    dir_path = "/Users/jasmineerell/Documents/Research/data/test"
+    dir_path = "/Users/jasmineerell/Documents/Research/data/HR_SDI"
     output_file = os.path.join(dir_path, "HR_SDI_all_subjects_HRV_features.xlsx")
 
     build_excel_from_subject_features(dir_path, output_file, features)
-
